@@ -52,6 +52,9 @@ Write-Host "[2/4] Copying files to VM..."
 
 ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
 
+# Fresh tree for Python apps: Windows OpenSSH recursive scp can leave stale files (e.g. new modules missing).
+ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared"
+
 $FilesToCopy = @(
     "apps/api",
     "apps/ingestion",
