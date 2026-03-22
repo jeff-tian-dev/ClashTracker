@@ -169,6 +169,55 @@ def upsert_war(war_data: dict, clan_tag: str) -> int | None:
     return war_id
 
 
+def resolve_stale_wars(clan_tag: str) -> int:
+    """Resolve wars stuck in 'inWar'/'preparation' whose end_time has passed.
+
+    Returns the number of wars resolved.
+    """
+    now = _now_iso()
+    resp = (
+        get_db()
+        .table("wars")
+        .select("id, clan_stars, opponent_stars, clan_destruction_pct, opponent_destruction_pct")
+        .eq("clan_tag", clan_tag)
+        .in_("state", ["inWar", "preparation"])
+        .lt("end_time", now)
+        .execute()
+    )
+
+    resolved = 0
+    for war in resp.data or []:
+        clan_stars = war["clan_stars"] or 0
+        opp_stars = war["opponent_stars"] or 0
+        clan_dest = float(war["clan_destruction_pct"] or 0)
+        opp_dest = float(war["opponent_destruction_pct"] or 0)
+
+        if clan_stars > opp_stars:
+            result = "win"
+        elif clan_stars < opp_stars:
+            result = "lose"
+        elif clan_dest > opp_dest:
+            result = "win"
+        elif clan_dest < opp_dest:
+            result = "lose"
+        else:
+            result = "tie"
+
+        get_db().table("wars").update({
+            "state": "warEnded",
+            "result": result,
+            "updated_at": _now_iso(),
+        }).eq("id", war["id"]).execute()
+
+        logger.info(
+            "Resolved stale war id=%d for clan %s → %s",
+            war["id"], clan_tag, result,
+        )
+        resolved += 1
+
+    return resolved
+
+
 def upsert_war_attacks(war_id: int, war_data: dict) -> None:
     attacks: list[dict] = []
     for side_key in ("clan", "opponent"):
