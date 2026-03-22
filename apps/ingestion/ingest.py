@@ -113,6 +113,17 @@ def _ingest_clan(client, clan_tag: str) -> None:
             ingestion_run_id=get_ingestion_run_id(),
         )
 
+    resolved = db.resolve_stale_wars(clan_tag)
+    if resolved:
+        log_event(
+            logger,
+            "ingestion.war.resolved_stale",
+            f"Resolved {resolved} stale war(s) for {clan_tag}",
+            clan_tag=clan_tag,
+            resolved_count=resolved,
+            ingestion_run_id=get_ingestion_run_id(),
+        )
+
     raids = coc.get_capital_raids(client, clan_tag, limit=5)
     log_event(
         logger,
