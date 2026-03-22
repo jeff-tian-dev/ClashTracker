@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton } from "@radix-ui/themes";
+import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton, Badge, Text } from "@radix-ui/themes";
 import { MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
 import { api, Player } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
+import { formatLeftAgo } from "../lib/formatRelativeLeft";
 
 export function Players() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -80,25 +81,52 @@ export function Players() {
                 <Table.ColumnHeaderCell>War Stars</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Role</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>League</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
                 {isAdmin && <Table.ColumnHeaderCell />}
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {players.map((p) => (
-                <Table.Row key={p.tag}>
+              {players.map((p) => {
+                const leftAt = p.left_tracked_roster_at;
+                const isLeft = Boolean(leftAt);
+                return (
+                <Table.Row key={p.tag} className={isLeft ? "opacity-60" : undefined}>
                   <Table.Cell>
-                    <Link
-                      to={`/players/${encodeURIComponent(p.tag)}`}
-                      className="text-[var(--accent-11)] hover:underline font-medium"
-                    >
-                      {p.name}
-                    </Link>
+                    <Flex direction="column" gap="1" align="start">
+                      <Link
+                        to={`/players/${encodeURIComponent(p.tag)}`}
+                        className={
+                          isLeft
+                            ? "text-[var(--gray-11)] hover:underline font-medium"
+                            : "text-[var(--accent-11)] hover:underline font-medium"
+                        }
+                      >
+                        {p.name}
+                      </Link>
+                    </Flex>
                   </Table.Cell>
                   <Table.Cell>{p.town_hall_level}</Table.Cell>
                   <Table.Cell>{p.trophies.toLocaleString()}</Table.Cell>
                   <Table.Cell>{p.war_stars}</Table.Cell>
                   <Table.Cell>{p.role || "—"}</Table.Cell>
                   <Table.Cell>{p.league_name || "—"}</Table.Cell>
+                  <Table.Cell>
+                    <Flex gap="2" wrap="wrap" align="center">
+                      {p.is_always_tracked && (
+                        <Badge size="1" color="blue" variant="soft">
+                          Always tracked
+                        </Badge>
+                      )}
+                      {leftAt && (
+                        <Badge size="1" color="gray" variant="surface">
+                          {formatLeftAgo(leftAt)}
+                        </Badge>
+                      )}
+                      {!leftAt && !p.is_always_tracked && (
+                        <Text size="2" color="gray">—</Text>
+                      )}
+                    </Flex>
+                  </Table.Cell>
                   {isAdmin && (
                     <Table.Cell>
                       <Dialog.Root>
@@ -125,7 +153,8 @@ export function Players() {
                     </Table.Cell>
                   )}
                 </Table.Row>
-              ))}
+              );
+              })}
             </Table.Body>
           </Table.Root>
           <Pagination

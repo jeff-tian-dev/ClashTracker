@@ -11,6 +11,16 @@ router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
 
+def _always_tracked_tag_set(db) -> set[str]:
+    r = db.table("tracked_players").select("player_tag").execute()
+    return {row["player_tag"] for row in (r.data or [])}
+
+
+def _attach_always_flag(rows: list, always: set[str]) -> None:
+    for row in rows:
+        row["is_always_tracked"] = row["tag"] in always
+
+
 @router.get("/players")
 def list_players(
     page: int = Query(1, ge=1),
@@ -31,11 +41,20 @@ def list_players(
         query = query.ilike("name", f"%{search}%")
 
     offset = (page - 1) * page_size
-    query = query.order("name").range(offset, offset + page_size - 1)
+    query = (
+        query.order("roster_sort_bucket")
+        .order("left_tracked_roster_at", desc=True)
+        .order("name")
+        .range(offset, offset + page_size - 1)
+    )
     resp = query.execute()
 
+    always = _always_tracked_tag_set(db)
+    data = resp.data or []
+    _attach_always_flag(data, always)
+
     return {
-        "data": resp.data,
+        "data": data,
         "total": resp.count or 0,
         "page": page,
         "page_size": page_size,
@@ -63,12 +82,16 @@ def get_player(tag: str):
                 "hint": "Player row missing after query (unexpected empty data).",
             },
         )
-    return resp.data
+    always = _always_tracked_tag_set(db)
+    row = resp.data
+    row["is_always_tracked"] = row["tag"] in always
+    return row
 
 
 @router.delete("/players/{tag:path}", status_code=204)
 def delete_player(tag: str, _: None = Depends(require_admin)):
     db = get_db()
+    db.table("tracked_players").delete().eq("player_tag", tag).execute()
     db.table("players").delete().eq("tag", tag).execute()
     logger.info(
         "player deleted",

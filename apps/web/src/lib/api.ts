@@ -57,6 +57,15 @@ export const api = {
   removeTrackedClan: (tag: string) =>
     request<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, { method: "DELETE" }),
 
+  trackedPlayers: () => request<{ data: TrackedPlayer[] }>("/api/tracked-players"),
+  addTrackedPlayer: (player_tag: string, note: string | undefined, key: string) =>
+    authedRequest<TrackedPlayer>("/api/tracked-players", key, {
+      method: "POST",
+      body: JSON.stringify({ player_tag, note }),
+    }),
+  removeTrackedPlayer: (tag: string, key: string) =>
+    authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
+
   verifyAdmin: (key: string) =>
     authedRequest<{ ok: boolean }>("/api/admin/verify", key, { method: "POST" }),
   deletePlayer: (tag: string, key: string) =>
@@ -93,6 +102,10 @@ export interface Player {
   clan_capital_contributions: number;
   league_name: string | null;
   updated_at: string;
+  /** Set when no longer on any tracked clan roster (and not always-tracked). Detection time, not historical leave. */
+  left_tracked_roster_at?: string | null;
+  roster_sort_bucket?: number;
+  is_always_tracked?: boolean;
 }
 
 export interface War {
@@ -169,4 +182,10 @@ export interface TrackedClan {
     clan_level: number;
     members_count: number;
   } | null;
+}
+
+export interface TrackedPlayer {
+  player_tag: string;
+  note: string | null;
+  added_at: string;
 }

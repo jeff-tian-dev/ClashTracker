@@ -31,23 +31,37 @@ def _run_once_inner() -> None:
         ingestion_run_id=get_ingestion_run_id(),
     )
     tracked = db.get_tracked_clans()
-    if not tracked:
+    always_tags_list = db.get_tracked_player_tags()
+    always_tags = set(always_tags_list)
+
+    if not tracked and not always_tags:
         log_event(
             logger,
             "ingestion.run.empty",
-            "No clans in tracked_clans table — nothing to ingest",
+            "No tracked clans or always-tracked players — nothing to ingest",
             ingestion_run_id=get_ingestion_run_id(),
         )
         return
 
-    log_event(
-        logger,
-        "ingestion.run.tracklist",
-        f"Starting ingestion for {len(tracked)} tracked clan(s)",
-        clan_count=len(tracked),
-        ingestion_run_id=get_ingestion_run_id(),
-    )
+    if tracked:
+        log_event(
+            logger,
+            "ingestion.run.tracklist",
+            f"Starting ingestion for {len(tracked)} tracked clan(s)",
+            clan_count=len(tracked),
+            ingestion_run_id=get_ingestion_run_id(),
+        )
+    if always_tags:
+        log_event(
+            logger,
+            "ingestion.run.always_track",
+            f"Always-tracking {len(always_tags)} player(s)",
+            always_track_count=len(always_tags),
+            ingestion_run_id=get_ingestion_run_id(),
+        )
+
     client = coc.create_client()
+    active_tags: set[str] = set(always_tags)
 
     try:
         for entry in tracked:
@@ -59,7 +73,26 @@ def _run_once_inner() -> None:
                 clan_tag=clan_tag,
                 ingestion_run_id=get_ingestion_run_id(),
             )
-            _ingest_clan(client, clan_tag)
+            ok, member_tags = _ingest_clan(client, clan_tag)
+            if ok:
+                active_tags |= member_tags
+            else:
+                active_tags |= db.get_player_tags_for_clan(clan_tag)
+
+        for tag in sorted(always_tags):
+            player_data = coc.get_player(client, tag)
+            if player_data:
+                db.upsert_player(player_data)
+            else:
+                log_event(
+                    logger,
+                    "ingestion.player.always_track_skip",
+                    f"Could not fetch always-tracked player {tag}",
+                    player_tag=tag,
+                    ingestion_run_id=get_ingestion_run_id(),
+                )
+
+        db.reconcile_tracked_roster(active_tags)
     finally:
         client.close()
 
@@ -71,7 +104,7 @@ def _run_once_inner() -> None:
     )
 
 
-def _ingest_clan(client, clan_tag: str) -> None:
+def _ingest_clan(client, clan_tag: str) -> tuple[bool, set[str]]:
     clan_data = coc.get_clan(client, clan_tag)
     if not clan_data:
         log_event(
@@ -81,11 +114,12 @@ def _ingest_clan(client, clan_tag: str) -> None:
             clan_tag=clan_tag,
             ingestion_run_id=get_ingestion_run_id(),
         )
-        return
+        return False, set()
 
     db.upsert_clan(clan_data)
 
     member_list = clan_data.get("memberList", [])
+    member_tags = {m["tag"] for m in member_list}
     log_event(
         logger,
         "ingestion.players.fetch",
@@ -137,3 +171,5 @@ def _ingest_clan(client, clan_tag: str) -> None:
         raid_id = db.upsert_capital_raid(raid, clan_tag)
         if raid_id:
             db.upsert_raid_members(raid_id, raid.get("members", []))
+
+    return True, member_tags

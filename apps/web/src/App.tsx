@@ -9,6 +9,7 @@ import { WarDetail } from "./pages/WarDetail";
 import { Raids } from "./pages/Raids";
 import { RaidDetail } from "./pages/RaidDetail";
 import { TrackedClans } from "./pages/TrackedClans";
+import { TrackedPlayers } from "./pages/TrackedPlayers";
 
 export default function App() {
   return (
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/raids" element={<Raids />} />
             <Route path="/raids/:id" element={<RaidDetail />} />
             <Route path="/tracked-clans" element={<TrackedClans />} />
+            <Route path="/tracked-players" element={<TrackedPlayers />} />
           </Route>
         </Routes>
       </HashRouter>

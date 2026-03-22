@@ -25,7 +25,7 @@ def test_players_first_page_shape(client, monkeypatch):
         data = [{"tag": "#ABC", "name": "Tester", "clan_tag": None}]
         count = 1
 
-    class _Q:
+    class _QPlayers:
         def select(self, *a, **k):
             return self
 
@@ -44,12 +44,28 @@ def test_players_first_page_shape(client, monkeypatch):
         def execute(self):
             return _R()
 
+    class _QTracked:
+        def select(self, *a, **k):
+            return self
+
+        def execute(self):
+            class _Tr:
+                data: list = []
+
+            return _Tr()
+
     class _Db:
-        def table(self, _n):
-            return _Q()
+        def table(self, name):
+            if name == "players":
+                return _QPlayers()
+            if name == "tracked_players":
+                return _QTracked()
+            raise AssertionError(f"unexpected table {name!r}")
 
     monkeypatch.setattr("api.routers.players.get_db", lambda: _Db())
 
     r = client.get("/api/players?page=1&page_size=20")
     assert r.status_code == 200
-    PaginatedPlayersResponse.model_validate(r.json())
+    body = r.json()
+    PaginatedPlayersResponse.model_validate(body)
+    assert body["data"][0].get("is_always_tracked") is False

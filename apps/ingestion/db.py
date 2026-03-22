@@ -52,6 +52,62 @@ def get_tracked_clans() -> list[dict]:
     return data
 
 
+def get_tracked_player_tags() -> list[str]:
+    """Player tags pinned for ingestion regardless of clan membership."""
+    resp = get_db().table("tracked_players").select("player_tag").execute()
+    data = resp.data
+    if data is None or not isinstance(data, list):
+        return []
+    return [row["player_tag"] for row in data]
+
+
+def get_player_tags_for_clan(clan_tag: str) -> set[str]:
+    """Last-known member tags stored for this clan (used when clan API fetch fails)."""
+    resp = (
+        get_db()
+        .table("players")
+        .select("tag")
+        .eq("clan_tag", clan_tag)
+        .execute()
+    )
+    rows = resp.data
+    if not rows:
+        return set()
+    return {r["tag"] for r in rows}
+
+
+def reconcile_tracked_roster(active_tags: set[str]) -> None:
+    """Clear left_tracked_roster_at for active tags; stamp first departure for everyone else still null.
+
+    First detection time after this feature ships — not historical leave dates.
+    """
+    db = get_db()
+    active_list = list(active_tags)
+    CHUNK = 200
+
+    if active_list:
+        for i in range(0, len(active_list), CHUNK):
+            chunk = active_list[i : i + CHUNK]
+            db.table("players").update({"left_tracked_roster_at": None}).in_("tag", chunk).execute()
+
+    q = db.table("players").select("tag").is_("left_tracked_roster_at", None)
+    if active_list:
+        q = q.not_.in_("tag", active_list)
+    resp = q.execute()
+    tags_to_mark = [r["tag"] for r in (resp.data or [])]
+    now = _now_iso()
+    for i in range(0, len(tags_to_mark), CHUNK):
+        chunk = tags_to_mark[i : i + CHUNK]
+        db.table("players").update({"left_tracked_roster_at": now}).in_("tag", chunk).execute()
+
+    if tags_to_mark:
+        logger.info(
+            "Marked %d player(s) as off tracked roster (first detection)",
+            len(tags_to_mark),
+            extra={"event": "ingestion.db.reconcile", "marked_count": len(tags_to_mark)},
+        )
+
+
 def upsert_clan(clan_data: dict) -> None:
     badge = clan_data.get("badgeUrls", {})
     row = {

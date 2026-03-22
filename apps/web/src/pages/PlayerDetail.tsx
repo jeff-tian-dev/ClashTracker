@@ -38,9 +38,19 @@ export function PlayerDetail() {
       <Link to="/players" className="inline-flex items-center gap-1 text-sm text-[var(--accent-11)] hover:underline mb-4">
         <ArrowLeftIcon /> Back to Players
       </Link>
-      <Flex align="center" gap="3" mb="4">
+      <Flex align="center" gap="3" mb="4" wrap="wrap">
         <Heading size="6">{player.name}</Heading>
         <Badge variant="outline">{player.tag}</Badge>
+        {player.is_always_tracked && (
+          <Badge color="blue" variant="soft">
+            Always tracked
+          </Badge>
+        )}
+        {player.left_tracked_roster_at && (
+          <Badge color="gray" variant="surface">
+            Not on tracked roster ({new Date(player.left_tracked_roster_at).toLocaleString()})
+          </Badge>
+        )}
       </Flex>
       <Card>
         <Grid columns={{ initial: "2", md: "4" }} gap="5" p="2">
@@ -56,6 +66,12 @@ export function PlayerDetail() {
           <Stat label="League" value={player.league_name || "—"} />
           <Stat label="Capital Contributions" value={player.clan_capital_contributions.toLocaleString()} />
           <Stat label="Last Updated" value={new Date(player.updated_at).toLocaleString()} />
+          {player.left_tracked_roster_at && (
+            <Stat
+              label="Detected off tracked roster"
+              value={new Date(player.left_tracked_roster_at).toLocaleString()}
+            />
+          )}
         </Grid>
       </Card>
     </Box>

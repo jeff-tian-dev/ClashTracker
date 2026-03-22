@@ -7,6 +7,7 @@ import {
   CrossCircledIcon,
   RocketIcon,
   GearIcon,
+  BookmarkIcon,
   LockClosedIcon,
   LockOpen1Icon,
 } from "@radix-ui/react-icons";
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/wars", label: "Wars", icon: CrossCircledIcon },
   { to: "/raids", label: "Capital Raids", icon: RocketIcon },
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
+  { to: "/tracked-players", label: "Tracked Players", icon: BookmarkIcon },
 ];
 
 function AdminToggle() {

@@ -66,14 +66,40 @@ class _DeleteChain:
         return _Resp()
 
 
+class _PlayerDeleteRecorder:
+    """Records delete order: tracked_players first, then players."""
+
+    def __init__(self):
+        self.calls: list[tuple[str, str, str]] = []
+
+    def table(self, name: str):
+        self._table = name
+        return self
+
+    def delete(self):
+        return self
+
+    def eq(self, col: str, val: str):
+        self.calls.append((self._table, col, val))
+        return self
+
+    def execute(self):
+        class _Resp:
+            data: list = []
+
+        return _Resp()
+
+
 def test_delete_player_success(client, monkeypatch):
-    mock = _DeleteChain()
+    mock = _PlayerDeleteRecorder()
     monkeypatch.setattr("api.routers.players.get_db", lambda: mock)
 
     r = client.delete("/api/players/%23PLAYER123", headers=AUTH_HEADER)
     assert r.status_code == 204
-    assert mock.deleted_table == "players"
-    assert mock.deleted_eq == ("tag", "#PLAYER123")
+    assert mock.calls == [
+        ("tracked_players", "player_tag", "#PLAYER123"),
+        ("players", "tag", "#PLAYER123"),
+    ]
 
 
 def test_delete_war_success(client, monkeypatch):

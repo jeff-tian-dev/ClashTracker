@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
-from .routers import admin, dashboard, health, players, raids, tracked_clans, wars  # noqa: E402
+from .routers import admin, dashboard, health, players, raids, tracked_clans, tracked_players, wars  # noqa: E402
 
 logger = logging.getLogger("api")
 
@@ -121,6 +121,7 @@ app.include_router(players.router)
 app.include_router(wars.router)
 app.include_router(raids.router)
 app.include_router(tracked_clans.router)
+app.include_router(tracked_players.router)
 app.include_router(admin.router)
 
 _static_dir = Path(__file__).resolve().parent.parent.parent / "static"
