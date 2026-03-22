@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Box, Heading, Table, TextField } from "@radix-ui/themes";
-import { MagnifyingGlassIcon } from "@radix-ui/react-icons";
+import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton } from "@radix-ui/themes";
+import { MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
 import { api, Player } from "../lib/api";
+import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
@@ -11,11 +12,22 @@ export function Players() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
+  const { isAdmin, adminKey } = useAdmin();
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(search);
+
+  async function handleDelete(tag: string) {
+    try {
+      await api.deletePlayer(tag, adminKey);
+      setPlayers((prev) => prev.filter((p) => p.tag !== tag));
+      setTotal((t) => t - 1);
+    } catch (err) {
+      console.error("Failed to delete player", err);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -68,6 +80,7 @@ export function Players() {
                 <Table.ColumnHeaderCell>War Stars</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Role</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>League</Table.ColumnHeaderCell>
+                {isAdmin && <Table.ColumnHeaderCell />}
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -86,6 +99,31 @@ export function Players() {
                   <Table.Cell>{p.war_stars}</Table.Cell>
                   <Table.Cell>{p.role || "—"}</Table.Cell>
                   <Table.Cell>{p.league_name || "—"}</Table.Cell>
+                  {isAdmin && (
+                    <Table.Cell>
+                      <Dialog.Root>
+                        <Dialog.Trigger>
+                          <IconButton variant="ghost" color="red" size="1">
+                            <TrashIcon />
+                          </IconButton>
+                        </Dialog.Trigger>
+                        <Dialog.Content maxWidth="400px">
+                          <Dialog.Title>Delete Player</Dialog.Title>
+                          <Dialog.Description>
+                            Remove {p.name} ({p.tag}) from the dashboard? This deletes their data from the database.
+                          </Dialog.Description>
+                          <Flex gap="3" mt="4" justify="end">
+                            <Dialog.Close>
+                              <Button variant="soft" color="gray">Cancel</Button>
+                            </Dialog.Close>
+                            <Dialog.Close>
+                              <Button color="red" onClick={() => handleDelete(p.tag)}>Delete</Button>
+                            </Dialog.Close>
+                          </Flex>
+                        </Dialog.Content>
+                      </Dialog.Root>
+                    </Table.Cell>
+                  )}
                 </Table.Row>
               ))}
             </Table.Body>

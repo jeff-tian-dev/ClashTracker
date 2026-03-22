@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Box, Heading, Card, Flex, Text, Badge, Grid } from "@radix-ui/themes";
+import { Box, Heading, Card, Flex, Text, Badge, Grid, Dialog, Button, IconButton } from "@radix-ui/themes";
+import { TrashIcon } from "@radix-ui/react-icons";
 import { api, War } from "../lib/api";
+import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
@@ -18,10 +20,21 @@ function resultBadge(result: string | null, state: string) {
 export function Wars() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page") || "1");
+  const { isAdmin, adminKey } = useAdmin();
 
   const [wars, setWars] = useState<War[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  async function handleDelete(id: number) {
+    try {
+      await api.deleteWar(id, adminKey);
+      setWars((prev) => prev.filter((w) => w.id !== id));
+      setTotal((t) => t - 1);
+    } catch (err) {
+      console.error("Failed to delete war", err);
+    }
+  }
 
   useEffect(() => {
     setLoading(true);
@@ -47,31 +60,61 @@ export function Wars() {
         <>
           <Grid columns={{ initial: "1", md: "2" }} gap="4">
             {wars.map((w) => (
-              <Link key={w.id} to={`/wars/${w.id}`} className="no-underline">
-                <Card className="hover:shadow-md transition-shadow">
-                  <Flex justify="between" align="start">
-                    <Box>
-                      <Text weight="bold" size="3">
-                        vs {w.opponent_name || "Unknown"}
+              <Box key={w.id} className="relative">
+                <Link to={`/wars/${w.id}`} className="no-underline">
+                  <Card className="hover:shadow-md transition-shadow">
+                    <Flex justify="between" align="start">
+                      <Box>
+                        <Text weight="bold" size="3">
+                          vs {w.opponent_name || "Unknown"}
+                        </Text>
+                        <Text size="2" color="gray" as="p">
+                          {w.team_size}v{w.team_size} &middot;{" "}
+                          {new Date(w.start_time).toLocaleDateString()}
+                        </Text>
+                      </Box>
+                      {resultBadge(w.result, w.state)}
+                    </Flex>
+                    <Flex gap="4" mt="3">
+                      <Text size="2">
+                        Stars: <Text weight="bold">{w.clan_stars}</Text> -{" "}
+                        <Text weight="bold">{w.opponent_stars}</Text>
                       </Text>
-                      <Text size="2" color="gray" as="p">
-                        {w.team_size}v{w.team_size} &middot;{" "}
-                        {new Date(w.start_time).toLocaleDateString()}
+                      <Text size="2">
+                        Destruction: {w.clan_destruction_pct.toFixed(1)}% - {w.opponent_destruction_pct.toFixed(1)}%
                       </Text>
-                    </Box>
-                    {resultBadge(w.result, w.state)}
-                  </Flex>
-                  <Flex gap="4" mt="3">
-                    <Text size="2">
-                      Stars: <Text weight="bold">{w.clan_stars}</Text> -{" "}
-                      <Text weight="bold">{w.opponent_stars}</Text>
-                    </Text>
-                    <Text size="2">
-                      Destruction: {w.clan_destruction_pct.toFixed(1)}% - {w.opponent_destruction_pct.toFixed(1)}%
-                    </Text>
-                  </Flex>
-                </Card>
-              </Link>
+                    </Flex>
+                  </Card>
+                </Link>
+                {isAdmin && (
+                  <Dialog.Root>
+                    <Dialog.Trigger>
+                      <IconButton
+                        variant="soft"
+                        color="red"
+                        size="1"
+                        className="!absolute top-2 right-2 z-10"
+                      >
+                        <TrashIcon />
+                      </IconButton>
+                    </Dialog.Trigger>
+                    <Dialog.Content maxWidth="400px">
+                      <Dialog.Title>Delete War</Dialog.Title>
+                      <Dialog.Description>
+                        Delete the war vs {w.opponent_name || "Unknown"} ({new Date(w.start_time).toLocaleDateString()})? This also removes all associated attacks.
+                      </Dialog.Description>
+                      <Flex gap="3" mt="4" justify="end">
+                        <Dialog.Close>
+                          <Button variant="soft" color="gray">Cancel</Button>
+                        </Dialog.Close>
+                        <Dialog.Close>
+                          <Button color="red" onClick={() => handleDelete(w.id)}>Delete</Button>
+                        </Dialog.Close>
+                      </Flex>
+                    </Dialog.Content>
+                  </Dialog.Root>
+                )}
+              </Box>
             ))}
           </Grid>
           <Pagination

@@ -47,11 +47,15 @@ Write-Host "=== Deploying to $User@$ServerIP ===" -ForegroundColor Cyan
 Write-Host "[1/4] Creating remote directory..."
 ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir"
 
-# ---- 2. Copy project files (exclude node_modules, .venv, .git, keys) ----
+# ---- 2. Copy only what the VM needs (api, ingestion, shared — NOT web/node_modules) ----
 Write-Host "[2/4] Copying files to VM..."
 
+ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
+
 $FilesToCopy = @(
-    "apps",
+    "apps/api",
+    "apps/ingestion",
+    "apps/shared",
     "supabase",
     "deploy",
     ".env.local"

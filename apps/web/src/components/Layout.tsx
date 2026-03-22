@@ -1,12 +1,17 @@
+import { useState } from "react";
 import { Link, useLocation, Outlet } from "react-router-dom";
-import { Box, Flex, Text } from "@radix-ui/themes";
+import { Box, Flex, Text, TextField, Button, Badge, IconButton } from "@radix-ui/themes";
 import {
   DashboardIcon,
   PersonIcon,
   CrossCircledIcon,
   RocketIcon,
   GearIcon,
+  LockClosedIcon,
+  LockOpen1Icon,
 } from "@radix-ui/react-icons";
+import { useAdmin } from "../lib/AdminContext";
+import { api } from "../lib/api";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: DashboardIcon },
@@ -15,6 +20,85 @@ const NAV_ITEMS = [
   { to: "/raids", label: "Capital Raids", icon: RocketIcon },
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
 ];
+
+function AdminToggle() {
+  const { isAdmin, setAdminKey, clearAdmin } = useAdmin();
+  const [open, setOpen] = useState(false);
+  const [keyInput, setKeyInput] = useState("");
+  const [error, setError] = useState("");
+  const [verifying, setVerifying] = useState(false);
+
+  async function handleUnlock() {
+    if (!keyInput.trim()) return;
+    setVerifying(true);
+    setError("");
+    try {
+      await api.verifyAdmin(keyInput.trim());
+      setAdminKey(keyInput.trim());
+      setKeyInput("");
+      setOpen(false);
+    } catch {
+      setError("Invalid key");
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  if (isAdmin) {
+    return (
+      <Flex align="center" gap="2" px="3" py="2">
+        <Badge color="red" size="1">Admin</Badge>
+        <IconButton
+          variant="ghost"
+          color="gray"
+          size="1"
+          onClick={() => { clearAdmin(); setOpen(false); }}
+          title="Lock admin"
+        >
+          <LockOpen1Icon />
+        </IconButton>
+      </Flex>
+    );
+  }
+
+  if (!open) {
+    return (
+      <Box px="3" py="2">
+        <IconButton
+          variant="ghost"
+          color="gray"
+          size="1"
+          onClick={() => setOpen(true)}
+          title="Unlock admin"
+        >
+          <LockClosedIcon />
+        </IconButton>
+      </Box>
+    );
+  }
+
+  return (
+    <Flex direction="column" gap="2" px="3" py="2">
+      <TextField.Root
+        size="1"
+        type="password"
+        placeholder="Admin key"
+        value={keyInput}
+        onChange={(e) => setKeyInput(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleUnlock()}
+      />
+      <Flex gap="2">
+        <Button size="1" disabled={verifying || !keyInput.trim()} onClick={handleUnlock}>
+          Unlock
+        </Button>
+        <Button size="1" variant="soft" color="gray" onClick={() => { setOpen(false); setError(""); }}>
+          Cancel
+        </Button>
+      </Flex>
+      {error && <Text size="1" color="red">{error}</Text>}
+    </Flex>
+  );
+}
 
 export function Layout() {
   const location = useLocation();
@@ -25,13 +109,13 @@ export function Layout() {
         asChild
         className="w-60 shrink-0 border-r border-[var(--gray-5)] bg-[var(--gray-2)]"
       >
-        <nav>
+        <nav className="flex flex-col h-screen">
           <Box px="4" py="5">
             <Text size="5" weight="bold">
               Clash Tracker
             </Text>
           </Box>
-          <Flex direction="column" gap="1" px="2">
+          <Flex direction="column" gap="1" px="2" className="flex-1">
             {NAV_ITEMS.map(({ to, label, icon: Icon }) => {
               const active =
                 to === "/" ? location.pathname === "/" : location.pathname.startsWith(to);
@@ -51,6 +135,9 @@ export function Layout() {
               );
             })}
           </Flex>
+          <Box className="border-t border-[var(--gray-5)]" py="2" px="1">
+            <AdminToggle />
+          </Box>
         </nav>
       </Box>
       <Box className="flex-1 overflow-auto" p="6">

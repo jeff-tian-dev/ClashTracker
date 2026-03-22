@@ -1,8 +1,10 @@
 .env.local
 .env
+.env.gh-pages
 *.key
 node_modules/
 __pycache__/
+.pytest_cache/
 *.pyc
 dist/
 .venv/
@@ -10,3 +12,7 @@ venv/
 *.egg-info/
 .cursor/
 *.postman_collection.json
+
+# Runtime logs (JSON lines; optional file logging via LOG_TO_FILE)
+logs/*
+!logs/.gitkeep

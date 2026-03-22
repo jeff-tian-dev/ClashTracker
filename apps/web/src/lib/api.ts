@@ -1,4 +1,4 @@
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const BASE = import.meta.env.VITE_API_URL || "";
 
 export interface PaginatedResponse<T> {
   data: T[];
@@ -18,6 +18,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+function authedRequest<T>(path: string, adminKey: string, init?: RequestInit): Promise<T> {
+  return request<T>(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${adminKey}` },
+  });
 }
 
 export const api = {
@@ -49,6 +56,15 @@ export const api = {
     }),
   removeTrackedClan: (tag: string) =>
     request<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, { method: "DELETE" }),
+
+  verifyAdmin: (key: string) =>
+    authedRequest<{ ok: boolean }>("/api/admin/verify", key, { method: "POST" }),
+  deletePlayer: (tag: string, key: string) =>
+    authedRequest<void>(`/api/players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
+  deleteWar: (id: number, key: string) =>
+    authedRequest<void>(`/api/wars/${id}`, key, { method: "DELETE" }),
+  deleteRaid: (id: number, key: string) =>
+    authedRequest<void>(`/api/raids/${id}`, key, { method: "DELETE" }),
 };
 
 export interface DashboardData {
