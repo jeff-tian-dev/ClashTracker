@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 
 from supabase import create_client, Client
 
-from .config import SUPABASE_URL, SUPABASE_KEY
+from .config import SUPABASE_KEY, SUPABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,16 @@ _supabase: Client | None = None
 
 def get_db() -> Client:
     global _supabase
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError(
+            "ingestion.db.unconfigured: set NEXT_PUBLIC_SUPABASE_URL (or SUPABASE_URL) and "
+            "SUPABASE_SERVICE_ROLE_KEY before running ingestion."
+        )
     if _supabase is None:
+        logger.debug(
+            "supabase client created",
+            extra={"event": "ingestion.db.client.create"},
+        )
         _supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
     return _supabase
 
@@ -23,7 +32,24 @@ def _now_iso() -> str:
 
 def get_tracked_clans() -> list[dict]:
     resp = get_db().table("tracked_clans").select("*").execute()
-    return resp.data
+    data = resp.data
+    if data is None:
+        logger.error(
+            "invariant: tracked_clans select returned None",
+            extra={"event": "ingestion.invariant.violation", "table": "tracked_clans"},
+        )
+        return []
+    if not isinstance(data, list):
+        logger.error(
+            "invariant: tracked_clans select returned non-list",
+            extra={
+                "event": "ingestion.invariant.violation",
+                "table": "tracked_clans",
+                "got_type": type(data).__name__,
+            },
+        )
+        return []
+    return data
 
 
 def upsert_clan(clan_data: dict) -> None:
@@ -48,7 +74,10 @@ def upsert_clan(clan_data: dict) -> None:
         "updated_at": _now_iso(),
     }
     get_db().table("clans").upsert(row, on_conflict="tag").execute()
-    logger.info("Upserted clan %s (%s)", row["tag"], row["name"])
+    logger.info(
+        "Upserted clan",
+        extra={"event": "ingestion.db.upsert", "table": "clans", "tag": row["tag"], "name": row["name"]},
+    )
 
 
 def upsert_player(player_data: dict) -> None:
@@ -72,6 +101,10 @@ def upsert_player(player_data: dict) -> None:
         "updated_at": _now_iso(),
     }
     get_db().table("players").upsert(row, on_conflict="tag").execute()
+    logger.debug(
+        "Upserted player",
+        extra={"event": "ingestion.db.upsert", "table": "players", "tag": row["tag"]},
+    )
 
 
 def _parse_coc_time(ts: str | None) -> str | None:

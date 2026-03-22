@@ -231,6 +231,52 @@ systemctl status clash-tracker-ingestion.timer
 
 ---
 
+## GitHub Pages (Public Sharing)
+
+To let others view the dashboard at `https://jeff-tian-dev.github.io/Analytics-Dashboard/`, the backend must serve over **HTTPS**. Browsers block HTTP API calls from HTTPS pages (mixed content).
+
+### 1. Get a free domain
+
+Create a subdomain at [DuckDNS](https://www.duckdns.org) (e.g. `clashtracker.duckdns.org`) and point it to your VM's public IP. DuckDNS does this automatically when you create the subdomain.
+
+### 2. Open ports 80 and 443
+
+In Oracle Cloud: VCN → Security Lists → your list → Add Ingress Rule for ports 80 and 443 (source 0.0.0.0/0).
+
+### 3. Run the HTTPS setup on the VM
+
+```bash
+ssh -i your-key.key ubuntu@YOUR_VM_IP
+cd /home/ubuntu/clash-tracker
+bash deploy/setup-https.sh clashtracker.duckdns.org
+```
+
+This installs Caddy, obtains a free Let's Encrypt certificate, and reverse-proxies HTTPS to the FastAPI backend.
+
+### 4. Build and deploy the frontend for GitHub Pages
+
+```bash
+cd apps/web
+cp .env.gh-pages.example .env.gh-pages
+# Edit .env.gh-pages: set VITE_API_URL=https://clashtracker.duckdns.org
+npm run deploy:gh-pages
+```
+
+If `gh-pages` fails (e.g. due to special characters in the repo), build manually and push:
+
+```bash
+npm run build:gh-pages
+# Then push the contents of dist/ to the gh-pages branch (see deploy docs)
+```
+
+### 5. Enable GitHub Pages
+
+Repo → Settings → Pages → Source: Deploy from branch → Branch: `gh-pages` → Save.
+
+The dashboard will be live at `https://jeff-tian-dev.github.io/Analytics-Dashboard/` and will load data from your HTTPS API.
+
+---
+
 ## Project Structure
 
 ```

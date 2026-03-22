@@ -1,0 +1,18 @@
+{
+  "tag": "#TESTCLAN",
+  "name": "Test Clan",
+  "type": "open",
+  "description": "",
+  "badgeUrls": { "large": "https://example.com/badge.png" },
+  "clanLevel": 10,
+  "members": 25,
+  "clanPoints": 50000,
+  "clanCapitalPoints": 1000,
+  "warFrequency": "always",
+  "warWinStreak": 0,
+  "warWins": 10,
+  "warTies": 1,
+  "warLosses": 5,
+  "isWarLogPublic": true,
+  "memberList": []
+}

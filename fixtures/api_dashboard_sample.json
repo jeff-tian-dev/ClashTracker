@@ -1,0 +1,29 @@
+{
+  "total_clans": 2,
+  "total_players": 40,
+  "total_wars": 120,
+  "active_wars": 1,
+  "total_raids": 45,
+  "recent_wars": [
+    {
+      "id": 1,
+      "clan_tag": "#ABC",
+      "opponent_name": "Opponent",
+      "state": "warEnded",
+      "result": "win",
+      "start_time": "2025-01-01T00:00:00+00:00",
+      "clan_stars": 15,
+      "opponent_stars": 12
+    }
+  ],
+  "recent_raids": [
+    {
+      "id": 10,
+      "clan_tag": "#ABC",
+      "state": "ended",
+      "start_time": "2025-01-02T00:00:00+00:00",
+      "capital_total_loot": 1000,
+      "raids_completed": 6
+    }
+  ]
+}
