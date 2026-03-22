@@ -42,15 +42,15 @@ A complete rewrite with a proper full-stack architecture:
                                      |
                           hourly pull (Bearer JWT)
                                      |
-               +---------------------v----------------------+
+               +---------------------v-----------------------+
                |          Oracle Cloud VM (Ubuntu 24.04)     |
                |                                             |
                |  +-------------------+  +-----------------+ |
-               |  | Ingestion Service |  | FastAPI Backend  | |
+               |  | Ingestion Service |  | FastAPI Backend | |
                |  | (systemd timer)   |  | (systemd svc)   | |
                |  +--------+----------+  +--------+--------+ |
-               |           |                      |           |
-               +-----------+----------------------+-----------+
+               |           |                      |          |
+               +-----------+----------------------+----------+
                            |                      |
                      upsert (REST)          query (REST)
                            |                      |
