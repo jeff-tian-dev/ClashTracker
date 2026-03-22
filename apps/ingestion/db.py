@@ -76,7 +76,7 @@ def upsert_clan(clan_data: dict) -> None:
     get_db().table("clans").upsert(row, on_conflict="tag").execute()
     logger.info(
         "Upserted clan",
-        extra={"event": "ingestion.db.upsert", "table": "clans", "tag": row["tag"], "name": row["name"]},
+        extra={"event": "ingestion.db.upsert", "table": "clans", "tag": row["tag"], "clan_name": row["name"]},
     )
 
 
