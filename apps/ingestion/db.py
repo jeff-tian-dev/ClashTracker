@@ -138,7 +138,10 @@ def upsert_clan(clan_data: dict) -> None:
 
 def upsert_player(player_data: dict) -> None:
     clan = player_data.get("clan")
-    league = player_data.get("league")
+    league_tier = player_data.get("leagueTier") or {}
+    league_obj = player_data.get("league") or {}
+    # Prefer leagueTier.name (granular tier); fall back to league.name if tier omitted.
+    league_name = league_tier.get("name") or league_obj.get("name")
     row = {
         "tag": player_data["tag"],
         "name": player_data["name"],
@@ -153,7 +156,7 @@ def upsert_player(player_data: dict) -> None:
         "role": player_data.get("role"),
         "war_preference": player_data.get("warPreference"),
         "clan_capital_contributions": player_data.get("clanCapitalContributions", 0),
-        "league_name": league["name"] if league else None,
+        "league_name": league_name,
         "updated_at": _now_iso(),
     }
     get_db().table("players").upsert(row, on_conflict="tag").execute()
