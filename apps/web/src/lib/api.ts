@@ -66,6 +66,10 @@ export const api = {
   removeTrackedPlayer: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
+  legends: () => request<LegendsLeaderboard>("/api/legends"),
+  legendsPlayer: (tag: string) =>
+    request<LegendsPlayerDetail>(`/api/legends/${encodeURIComponent(tag)}`),
+
   verifyAdmin: (key: string) =>
     authedRequest<{ ok: boolean }>("/api/admin/verify", key, { method: "POST" }),
   deletePlayer: (tag: string, key: string) =>
@@ -188,4 +192,42 @@ export interface TrackedPlayer {
   player_tag: string;
   note: string | null;
   added_at: string;
+}
+
+export interface LegendsLeaderboardEntry {
+  rank: number;
+  player_tag: string;
+  name: string;
+  attack_total: number;
+  defense_total: number;
+  net: number;
+  initial_trophies: number;
+  final_trophies: number;
+}
+
+export interface LegendsLeaderboard {
+  data: LegendsLeaderboardEntry[];
+  legends_day: string;
+}
+
+export interface LegendsBattle {
+  id: number;
+  player_tag: string;
+  opponent_tag: string;
+  opponent_name: string | null;
+  is_attack: boolean;
+  stars: number;
+  destruction_pct: number;
+  trophies: number;
+  legends_day: string;
+  first_seen_at: string;
+}
+
+export interface LegendsPlayerDetail {
+  player_tag: string;
+  player_name: string;
+  current_trophies: number;
+  legends_day: string;
+  attacks: LegendsBattle[];
+  defenses: LegendsBattle[];
 }

@@ -10,6 +10,7 @@ import {
   BookmarkIcon,
   LockClosedIcon,
   LockOpen1Icon,
+  StarFilledIcon,
 } from "@radix-ui/react-icons";
 import { useAdmin } from "../lib/AdminContext";
 import { api } from "../lib/api";
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/players", label: "Players", icon: PersonIcon },
   { to: "/wars", label: "Wars", icon: CrossCircledIcon },
   { to: "/raids", label: "Capital Raids", icon: RocketIcon },
+  { to: "/legends", label: "Legends", icon: StarFilledIcon },
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
   { to: "/tracked-players", label: "Tracked Players", icon: BookmarkIcon },
 ];

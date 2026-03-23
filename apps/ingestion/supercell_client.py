@@ -97,5 +97,17 @@ def get_player(client: httpx.Client, tag: str) -> dict | None:
     return resp.json()
 
 
+def get_player_battlelog(client: httpx.Client, tag: str) -> list[dict]:
+    resp = client.get(f"/players/{_encode_tag(tag)}/battlelog")
+    if resp.status_code == 404:
+        logger.warning(
+            "Battle log not found",
+            extra={"event": "coc.battlelog.not_found", "player_tag": tag},
+        )
+        return []
+    _raise_for_status(resp, endpoint="get_player_battlelog", resource_id=tag)
+    return resp.json().get("items", [])
+
+
 def create_client() -> httpx.Client:
     return _client()

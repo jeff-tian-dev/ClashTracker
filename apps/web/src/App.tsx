@@ -8,6 +8,7 @@ import { Wars } from "./pages/Wars";
 import { WarDetail } from "./pages/WarDetail";
 import { Raids } from "./pages/Raids";
 import { RaidDetail } from "./pages/RaidDetail";
+import { Legends } from "./pages/Legends";
 import { TrackedClans } from "./pages/TrackedClans";
 import { TrackedPlayers } from "./pages/TrackedPlayers";
 
@@ -24,6 +25,7 @@ export default function App() {
             <Route path="/wars/:id" element={<WarDetail />} />
             <Route path="/raids" element={<Raids />} />
             <Route path="/raids/:id" element={<RaidDetail />} />
+            <Route path="/legends" element={<Legends />} />
             <Route path="/tracked-clans" element={<TrackedClans />} />
             <Route path="/tracked-players" element={<TrackedPlayers />} />
           </Route>

@@ -325,6 +325,55 @@ def upsert_capital_raid(raid_data: dict, clan_tag: str) -> int | None:
     return raid_id
 
 
+def get_legends_player_tags() -> list[str]:
+    """Return tags of tracked players currently in a Legends league."""
+    resp = (
+        get_db()
+        .table("players")
+        .select("tag")
+        .ilike("league_name", "%legend%")
+        .execute()
+    )
+    return [r["tag"] for r in (resp.data or [])]
+
+
+def get_existing_legends_keys(player_tag: str, legends_day: str) -> set[tuple]:
+    """Return dedup keys already stored for a player on a given legends day."""
+    resp = (
+        get_db()
+        .table("legends_battles")
+        .select("opponent_tag, is_attack, stars, destruction_pct")
+        .eq("player_tag", player_tag)
+        .eq("legends_day", legends_day)
+        .execute()
+    )
+    return {
+        (r["opponent_tag"], r["is_attack"], r["stars"], r["destruction_pct"])
+        for r in (resp.data or [])
+    }
+
+
+def upsert_legends_battle(row: dict) -> None:
+    get_db().table("legends_battles").upsert(
+        row,
+        on_conflict="player_tag,opponent_tag,is_attack,stars,destruction_pct,legends_day",
+    ).execute()
+
+
+def upsert_legends_battles_batch(rows: list[dict]) -> None:
+    if not rows:
+        return
+    get_db().table("legends_battles").upsert(
+        rows,
+        on_conflict="player_tag,opponent_tag,is_attack,stars,destruction_pct,legends_day",
+    ).execute()
+    logger.info(
+        "Upserted %d legends battle(s)",
+        len(rows),
+        extra={"event": "ingestion.db.upsert", "table": "legends_battles", "count": len(rows)},
+    )
+
+
 def upsert_raid_members(raid_id: int, members: list[dict]) -> None:
     rows = [
         {
