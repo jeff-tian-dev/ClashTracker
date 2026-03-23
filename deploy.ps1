@@ -54,6 +54,8 @@ ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
 
 # Fresh tree for Python apps: Windows OpenSSH recursive scp can leave stale files (e.g. new modules missing).
 ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared"
+# Remove mistaken top-level copies from older deploy.ps1 (scp -r apps/api to RemoteDir/ created api/, not apps/api).
+ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/api $RemoteDir/ingestion $RemoteDir/shared"
 
 $FilesToCopy = @(
     "apps/api",
@@ -68,7 +70,15 @@ foreach ($item in $FilesToCopy) {
     $localPath = Join-Path $ProjectRoot $item
     if (Test-Path $localPath -PathType Container) {
         Write-Host "  Syncing directory: $item"
-        scp @SSHOpts -r $localPath "${User}@${ServerIP}:${RemoteDir}/"
+        # scp -r apps/api host:remote/ puts folder as remote/api — target must be remote/apps/ to get remote/apps/api.
+        $parentRel = Split-Path -Parent $item
+        if ([string]::IsNullOrEmpty($parentRel)) {
+            $remoteParent = $RemoteDir
+        } else {
+            $remoteParent = "$RemoteDir/$($parentRel.Replace('\', '/'))"
+        }
+        ssh @SSHOpts "$User@$ServerIP" "mkdir -p $remoteParent"
+        scp @SSHOpts -r $localPath "${User}@${ServerIP}:${remoteParent}/"
     } else {
         Write-Host "  Copying file: $item"
         scp @SSHOpts $localPath "${User}@${ServerIP}:${RemoteDir}/$item"

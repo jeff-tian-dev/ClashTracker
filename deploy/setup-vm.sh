@@ -17,7 +17,9 @@ sudo apt-get install -y -qq python3 python3-venv python3-pip
 
 # ---------- Python venv ----------
 echo "[2/5] Creating Python virtual environment..."
-python3 -m venv "$VENV_DIR"
+if [ ! -x "$VENV_DIR/bin/pip" ]; then
+    python3 -m venv "$VENV_DIR"
+fi
 "$VENV_DIR/bin/pip" install --upgrade pip -q
 
 echo "[3/5] Installing Python dependencies..."
