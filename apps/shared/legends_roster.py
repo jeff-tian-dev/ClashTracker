@@ -7,6 +7,9 @@ _LEGEND_LEAGUE_NAME = "Legend League"
 # Some payloads or copies may include a trailing period.
 _LEGEND_LEAGUE_NAME_WITH_PERIOD = "Legend League."
 
+# PostgREST default max rows per request; page to avoid truncation.
+_ROSTER_PAGE = 1000
+
 
 def league_name_is_legends(league_name: str | None) -> bool:
     """True only when the stored name is Legend League (optional trailing period, case-insensitive)."""
@@ -21,15 +24,30 @@ def league_name_is_legends(league_name: str | None) -> bool:
 def fetch_legends_roster_tags(db) -> list[str]:
     """Tags for the Legends day table and `ingest_legends` battle polling.
 
-    Source of truth: `players.league_name` equals Legend League (see league_name_is_legends).
+    Source of truth: `players.league_name` is Legend League (see league_name_is_legends).
+
+    Uses a broad ILIKE prefilter plus strict Python check: plain `.in_(league_name, ...)` is
+    case-sensitive in Postgres (often 0 rows); exact ILIKE misses padded strings. Paginates so
+    PostgREST never truncates the roster at the default row limit.
     """
-    r = (
-        db.table("players")
-        .select("tag")
-        .in_("league_name", [_LEGEND_LEAGUE_NAME, _LEGEND_LEAGUE_NAME_WITH_PERIOD])
-        .execute()
-    )
-    roster = {row["tag"] for row in (r.data or []) if row.get("tag")}
+    roster: set[str] = set()
+    off = 0
+    while True:
+        r = (
+            db.table("players")
+            .select("tag", "league_name")
+            .ilike("league_name", "%Legend League%")
+            .range(off, off + _ROSTER_PAGE - 1)
+            .execute()
+        )
+        chunk = r.data or []
+        for row in chunk:
+            tag = row.get("tag")
+            if tag and league_name_is_legends(row.get("league_name")):
+                roster.add(tag)
+        if len(chunk) < _ROSTER_PAGE:
+            break
+        off += _ROSTER_PAGE
     return sorted(roster)
 
 

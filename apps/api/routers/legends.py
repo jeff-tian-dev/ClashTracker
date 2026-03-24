@@ -59,6 +59,14 @@ def legends_leaderboard():
         if tag not in agg:
             agg[tag] = {"attack_total": 0, "defense_total": 0}
 
+    if not legends_roster_tags and battles:
+        logger.warning(
+            "legends_leaderboard: roster query returned 0 Legend League players but battles exist "
+            "for legends_day=%s — leaderboard will only list attackers/defenders; check league_name "
+            "casing/spacing, Supabase data, and that apps/shared is deployed on the API host.",
+            legends_day,
+        )
+
     if not agg:
         return {"data": [], "legends_day": legends_day}
 
