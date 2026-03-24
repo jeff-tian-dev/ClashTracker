@@ -55,6 +55,9 @@ ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
 # Drop any legacy static/ tree from older deploys (UI is GitHub Pages only).
 ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/static"
 
+# Drop legacy apps/web (node_modules); backend-only deploy — UI is GitHub Pages.
+ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/web"
+
 # Fresh tree for Python apps: Windows OpenSSH recursive scp can leave stale files (e.g. new modules missing).
 ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared"
 # Remove mistaken top-level copies from older deploy.ps1 (scp -r apps/api to RemoteDir/ created api/, not apps/api).
