@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import pytest
+
+from tests.test_admin import AUTH_HEADER
 from postgrest.exceptions import APIError
 
 
@@ -68,6 +70,6 @@ def test_tracked_clan_duplicate_returns_structured_409(client, monkeypatch):
 
     monkeypatch.setattr("api.routers.tracked_clans.get_db", lambda: _Ins())
 
-    r = client.post("/api/tracked-clans", json={"clan_tag": "#DUPE"})
+    r = client.post("/api/tracked-clans", headers=AUTH_HEADER, json={"clan_tag": "#DUPE"})
     assert r.status_code == 409
     assert r.json()["detail"]["error"] == "already_tracked"

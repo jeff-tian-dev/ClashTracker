@@ -71,12 +71,12 @@ The frontend never communicates with Supabase directly. All database access is s
 
 ## Core Capabilities
 
-- **Multi-clan tracking** -- a `tracked_clans` configuration table drives ingestion dynamically; adding or removing a clan tag requires no code changes or redeployments.
+- **Multi-clan tracking** -- a `tracked_clans` configuration table drives ingestion dynamically; changing the list requires no code changes or redeployments. Adding or removing clan tags via the API (or dashboard admin mode) uses the same admin key as tracked players when `ADMIN_API_KEY` is set.
 - **Tracked players** -- a `tracked_players` table lists player tags to ingest even when they are not in a tracked clan; the pipeline merges clan rosters with these tags. Roster reconciliation records when members leave tracked clans (`left_tracked_roster_at` on `players`).
 - **Idempotent ingestion** -- every upsert uses composite unique constraints (`ON CONFLICT ... DO UPDATE`), making the pipeline safe to re-run at any frequency without creating duplicates.
 - **Hourly automated sync** -- a systemd timer triggers the ingestion service on a fixed schedule with jitter, managed entirely by the OS process supervisor.
-- **REST API** -- paginated, filterable read endpoints for players, wars, capital raids, and dashboard summaries; writes for `tracked_clans` (POST/DELETE) and for `tracked_players` (POST/DELETE, requires admin key). Structured logging with `X-Request-Id` on responses.
-- **Responsive dashboard** -- React SPA with `HashRouter` (GitHub Pages–friendly base path), loading and empty states, search, pagination, drill-down views, a **Tracked players** screen, and an optional admin mode (Bearer token) for mutating tracked players.
+- **REST API** -- paginated, filterable read endpoints for players, wars, capital raids, and dashboard summaries; writes for `tracked_clans` and `tracked_players` (POST/DELETE) require `Authorization: Bearer <ADMIN_API_KEY>` when the key is configured. Structured logging with `X-Request-Id` on responses.
+- **Responsive dashboard** -- React SPA with `HashRouter` (GitHub Pages–friendly base path), loading and empty states, search, pagination, drill-down views, **Tracked clans** and **Tracked players** screens, and an optional admin mode (Bearer token) for mutating both lists.
 - **Optional same-origin UI** -- if a production build exists at repo root `static/`, FastAPI serves the SPA and `/assets` alongside the JSON API (useful when you want one origin behind HTTPS without GitHub Pages).
 
 ---
@@ -120,7 +120,7 @@ The ingestion service is a single-purpose Python process designed to run as a on
 
 ### API Layer
 
-The backend is a FastAPI application with **8 routers** (`health`, `dashboard`, `players`, `wars`, `raids`, `tracked_clans`, `tracked_players`, `admin`). Most routes are read-oriented. **Tracked clans** remain open POST/DELETE (no admin header). **Tracked players** POST/DELETE and **`POST /api/admin/verify`** require `Authorization: Bearer <ADMIN_API_KEY>` when `ADMIN_API_KEY` is set on the server; if the key is unset, admin routes return **503**.
+The backend is a FastAPI application with **8 routers** (`health`, `dashboard`, `players`, `wars`, `raids`, `tracked_clans`, `tracked_players`, `admin`). Most routes are read-oriented. **`POST`/`DELETE` on `tracked_clans` and `tracked_players`**, **`POST /api/admin/verify`**, and destructive admin routes on players/wars/raids require `Authorization: Bearer <ADMIN_API_KEY>` when `ADMIN_API_KEY` is set on the server; if the key is unset, those routes return **503**.
 
 - **Pagination** is offset-based via `page` and `page_size` query parameters. Every list endpoint returns `{ data, total, page, page_size }` to support frontend pagination controls.
 - **Filtering** is scoped per resource: players support `clan_tag` and `search` (name ILIKE), wars support `clan_tag` and `state`, raids support `clan_tag`.
@@ -132,7 +132,7 @@ The backend is a FastAPI application with **8 routers** (`health`, `dashboard`, 
 The frontend is a single-page React application built with Vite, TypeScript, Tailwind CSS, and Radix UI Themes. Routing uses **`HashRouter`** so the app works when hosted under a subpath on GitHub Pages (`#/players`, etc.).
 
 - **Typed API client** (`src/lib/api.ts`) -- a single module with full TypeScript interfaces for every API response shape, a generic `request<T>()` wrapper, and named methods for each endpoint. No `any` types.
-- **Admin context** (`src/lib/AdminContext.tsx`) -- stores an optional admin API key in `sessionStorage` and sends `Authorization: Bearer …` for tracked-player mutations when configured.
+- **Admin context** (`src/lib/AdminContext.tsx`) -- stores an optional admin API key in `sessionStorage` and sends `Authorization: Bearer …` for tracked-clan and tracked-player mutations when configured.
 - **Collocated page components** -- each route maps to a page component in `src/pages/` that owns its own data fetching via `useEffect`, loading state, and error handling. No global state management beyond admin key context; the data model is simple enough that per-page fetching is the right tradeoff.
 - **Reusable primitives** -- `LoadingSpinner`, `EmptyState`, and `Pagination` components are shared across all list views.
 - **Radix UI Themes** for accessible, consistent UI components (tables, cards, badges, dialogs) without writing custom component logic.
@@ -142,7 +142,7 @@ The frontend is a single-page React application built with Vite, TypeScript, Tai
 ## Security Considerations
 
 - **All secrets live in a single `.env.local` file** at the project root, excluded from version control via `.gitignore`. The SSH private key is similarly gitignored by extension (`*.key`).
-- **`ADMIN_API_KEY`** gates tracked-player writes and admin verification. Generate a strong value (see `.env.example`). Anyone who knows the key can add or remove tracked players via the API.
+- **`ADMIN_API_KEY`** gates tracked-clan and tracked-player writes, admin verification, and other admin-only API actions. Generate a strong value (see `.env.example`). Anyone who knows the key can change the tracked-clan and tracked-player lists via the API.
 - **The Supercell API token and Supabase service-role key never reach the browser.** The frontend only knows the backend's public URL (`VITE_API_URL`). All database and external API access is server-side. (If you enable admin mode in the UI, that key is stored in **sessionStorage** and sent as a Bearer token—treat the browser session as trusted only on your own machine.)
 - **The Supercell API token is IP-whitelisted** to the Oracle Cloud VM's public IP, meaning the token is useless if leaked without access to that specific network.
 - **The backend uses the Supabase service-role key**, which bypasses Row Level Security. This is acceptable because the API is read-only for data tables, and the service-role key is confined to the server process.
@@ -179,7 +179,7 @@ This is an MVP scoped for a small number of tracked clans (1-20). The design ref
 ```bash
 cp .env.example .env.local
 # Fill in: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, COC_API_TOKEN
-# Optional: ADMIN_API_KEY for tracked-player POST/DELETE and /api/admin/verify
+# Optional: ADMIN_API_KEY for tracked-clan / tracked-player POST/DELETE, /api/admin/verify, etc.
 ```
 
 ### 2. Run database migrations

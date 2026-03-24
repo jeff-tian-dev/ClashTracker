@@ -49,13 +49,13 @@ export const api = {
   raid: (id: number) => request<RaidDetail>(`/api/raids/${id}`),
 
   trackedClans: () => request<{ data: TrackedClan[] }>("/api/tracked-clans"),
-  addTrackedClan: (clan_tag: string, note?: string) =>
-    request<TrackedClan>("/api/tracked-clans", {
+  addTrackedClan: (clan_tag: string, note: string | undefined, key: string) =>
+    authedRequest<TrackedClan>("/api/tracked-clans", key, {
       method: "POST",
       body: JSON.stringify({ clan_tag, note }),
     }),
-  removeTrackedClan: (tag: string) =>
-    request<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, { method: "DELETE" }),
+  removeTrackedClan: (tag: string, key: string) =>
+    authedRequest<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
   trackedPlayers: () => request<{ data: TrackedPlayer[] }>("/api/tracked-players"),
   addTrackedPlayer: (player_tag: string, note: string | undefined, key: string) =>

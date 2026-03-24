@@ -1,7 +1,9 @@
 import logging
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
+from ..auth import require_admin
 from ..database import get_db
 
 router = APIRouter(prefix="/api")
@@ -54,7 +56,7 @@ def list_tracked_clans():
 
 
 @router.post("/tracked-clans", status_code=201)
-def add_tracked_clan(body: TrackedClanCreate):
+def add_tracked_clan(body: TrackedClanCreate, _: None = Depends(require_admin)):
     db = get_db()
     logger.debug("add tracked clan", extra={"event": "api.db.write", "table": "tracked_clans"})
     tag = body.clan_tag.strip().upper()
@@ -102,7 +104,7 @@ def add_tracked_clan(body: TrackedClanCreate):
 
 
 @router.delete("/tracked-clans/{tag:path}", status_code=204)
-def remove_tracked_clan(tag: str):
+def remove_tracked_clan(tag: str, _: None = Depends(require_admin)):
     db = get_db()
     logger.debug(
         "remove tracked clan",
