@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from supabase import create_client, Client
+from shared.legends_roster import fetch_legends_roster_tags
 
 from .config import SUPABASE_KEY, SUPABASE_URL
 
@@ -326,15 +327,8 @@ def upsert_capital_raid(raid_data: dict, clan_tag: str) -> int | None:
 
 
 def get_legends_player_tags() -> list[str]:
-    """Return tags of tracked players currently in a Legends league."""
-    resp = (
-        get_db()
-        .table("players")
-        .select("tag")
-        .ilike("league_name", "%legend%")
-        .execute()
-    )
-    return [r["tag"] for r in (resp.data or [])]
+    """Return tags on the Legends daily roster (see shared.legends_roster)."""
+    return fetch_legends_roster_tags(get_db())
 
 
 def get_existing_legends_keys(player_tag: str, legends_day: str) -> set[tuple]:

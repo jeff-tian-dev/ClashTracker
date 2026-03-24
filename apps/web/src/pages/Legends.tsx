@@ -141,7 +141,7 @@ export function Legends() {
       {loading ? (
         <LoadingSpinner />
       ) : entries.length === 0 ? (
-        <EmptyState message="No legends battles recorded for today." />
+        <EmptyState message="No players in Legends League in the roster yet." />
       ) : (
         <Table.Root variant="surface">
           <Table.Header>
@@ -156,7 +156,9 @@ export function Legends() {
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {entries.map((e) => (
+            {entries.map((e) => {
+              const hasBattles = e.has_battles !== false;
+              return (
               <Table.Row
                 key={e.player_tag}
                 className="cursor-pointer hover:bg-[var(--gray-3)] transition-colors"
@@ -169,18 +171,37 @@ export function Legends() {
                   <Text className="text-[var(--accent-11)] font-medium">{e.name}</Text>
                 </Table.Cell>
                 <Table.Cell>
-                  <Text color="green">+{e.attack_total}</Text>
+                  {hasBattles ? (
+                    <Text color="green">+{e.attack_total}</Text>
+                  ) : (
+                    <Text size="2" color="gray">
+                      —
+                    </Text>
+                  )}
                 </Table.Cell>
                 <Table.Cell>
-                  <Text color="red">−{e.defense_total}</Text>
+                  {hasBattles ? (
+                    <Text color="red">−{e.defense_total}</Text>
+                  ) : (
+                    <Text size="2" color="gray">
+                      —
+                    </Text>
+                  )}
                 </Table.Cell>
                 <Table.Cell>
                   <Badge
                     size="1"
-                    color={e.net > 0 ? "green" : e.net < 0 ? "red" : "gray"}
+                    color={hasBattles ? (e.net > 0 ? "green" : e.net < 0 ? "red" : "gray") : "gray"}
                     variant="soft"
                   >
-                    {e.net > 0 ? "+" : ""}{e.net}
+                    {hasBattles ? (
+                      <>
+                        {e.net > 0 ? "+" : ""}
+                        {e.net}
+                      </>
+                    ) : (
+                      "—"
+                    )}
                   </Badge>
                 </Table.Cell>
                 <Table.Cell>{e.initial_trophies.toLocaleString()}</Table.Cell>
@@ -188,7 +209,8 @@ export function Legends() {
                   <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
                 </Table.Cell>
               </Table.Row>
-            ))}
+            );
+            })}
           </Table.Body>
         </Table.Root>
       )}

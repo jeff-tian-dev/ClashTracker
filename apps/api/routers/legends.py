@@ -3,6 +3,8 @@ from datetime import date, datetime, time, timezone, timedelta
 
 from fastapi import APIRouter, HTTPException, Query
 
+from shared.legends_roster import fetch_legends_roster_tags, is_always_tracked_legends_roster_player
+
 from ..database import get_db
 
 router = APIRouter(prefix="/api")
@@ -31,6 +33,8 @@ def legends_leaderboard():
         extra={"event": "api.db.query", "table": "legends_battles", "legends_day": legends_day},
     )
 
+    legends_roster_tags = fetch_legends_roster_tags(db)
+
     resp = (
         db.table("legends_battles")
         .select("player_tag, is_attack, trophies")
@@ -39,15 +43,21 @@ def legends_leaderboard():
     )
     battles = resp.data or []
 
+    tags_with_battles: set[str] = set()
     agg: dict[str, dict] = {}
     for b in battles:
         tag = b["player_tag"]
+        tags_with_battles.add(tag)
         if tag not in agg:
             agg[tag] = {"attack_total": 0, "defense_total": 0}
         if b["is_attack"]:
             agg[tag]["attack_total"] += b["trophies"]
         else:
             agg[tag]["defense_total"] += b["trophies"]
+
+    for tag in legends_roster_tags:
+        if tag not in agg:
+            agg[tag] = {"attack_total": 0, "defense_total": 0}
 
     if not agg:
         return {"data": [], "legends_day": legends_day}
@@ -74,6 +84,7 @@ def legends_leaderboard():
             "net": net,
             "initial_trophies": current_trophies - net,
             "final_trophies": current_trophies,
+            "has_battles": tag in tags_with_battles,
         })
 
     rows.sort(key=lambda r: r["net"], reverse=True)
@@ -95,6 +106,13 @@ def legends_player_days(tag: str):
     )
     days = sorted({r["legends_day"] for r in (resp.data or [])}, reverse=True)
     days = [d for d in days if d not in _HIDDEN_FROM_LEGENDS_DAY_PICKER]
+    current = _current_legends_day().isoformat()
+    if (
+        current not in _HIDDEN_FROM_LEGENDS_DAY_PICKER
+        and is_always_tracked_legends_roster_player(db, tag)
+        and current not in days
+    ):
+        days = sorted([current, *days], reverse=True)
     return {"legends_days": days}
 
 

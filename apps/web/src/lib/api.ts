@@ -216,6 +216,8 @@ export interface LegendsLeaderboardEntry {
   net: number;
   initial_trophies: number;
   final_trophies: number;
+  /** False when no battles this legends day; omit/true treated as activity (older API). */
+  has_battles?: boolean;
 }
 
 export interface LegendsLeaderboard {
