@@ -15,6 +15,11 @@ def test_delete_tracked_players_without_auth_returns_401(client):
     assert r.status_code == 401
 
 
+def test_patch_tracked_players_without_auth_returns_401(client):
+    r = client.patch("/api/tracked-players/%23ABC", json={"display_name": "X"})
+    assert r.status_code == 401
+
+
 def test_add_tracked_player_normalizes_tag(client, monkeypatch):
     class _InsertMock:
         def __init__(self):
@@ -99,3 +104,176 @@ def test_remove_tracked_player_success(client, monkeypatch):
     r = client.delete("/api/tracked-players/%23PINNED", headers=AUTH_HEADER)
     assert r.status_code == 204
     assert mock.eq_calls == [("player_tag", "#PINNED")]
+
+
+def test_add_tracked_player_resolves_name_from_players_when_omitted(client, monkeypatch):
+    class PlayersChain:
+        def select(self, *_a, **_k):
+            return self
+
+        def eq(self, *_a, **_k):
+            return self
+
+        def limit(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": [{"name": "  FromDb  "}]})()
+
+    class TrackedInsert:
+        def __init__(self):
+            self.inserted: dict | None = None
+
+        def insert(self, row):
+            self.inserted = row
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": [self.inserted]})()
+
+    class DB:
+        def __init__(self):
+            self.tracked = TrackedInsert()
+
+        def table(self, name):
+            if name == "players":
+                return PlayersChain()
+            if name == "tracked_players":
+                return self.tracked
+            raise AssertionError(name)
+
+    db = DB()
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: db)
+
+    r = client.post(
+        "/api/tracked-players",
+        headers=AUTH_HEADER,
+        json={"player_tag": "#abc", "note": "n1"},
+    )
+    assert r.status_code == 201
+    assert db.tracked.inserted is not None
+    assert db.tracked.inserted["player_tag"] == "#ABC"
+    assert db.tracked.inserted["display_name"] == "FromDb"
+    assert db.tracked.inserted["note"] == "n1"
+
+
+def test_add_tracked_player_unknown_when_not_in_players_table(client, monkeypatch):
+    class PlayersChain:
+        def select(self, *_a, **_k):
+            return self
+
+        def eq(self, *_a, **_k):
+            return self
+
+        def limit(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": []})()
+
+    class TrackedInsert:
+        def __init__(self):
+            self.inserted: dict | None = None
+
+        def insert(self, row):
+            self.inserted = row
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": [self.inserted]})()
+
+    class DB:
+        def __init__(self):
+            self.tracked = TrackedInsert()
+
+        def table(self, name):
+            if name == "players":
+                return PlayersChain()
+            if name == "tracked_players":
+                return self.tracked
+            raise AssertionError(name)
+
+    db = DB()
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: db)
+
+    r = client.post(
+        "/api/tracked-players",
+        headers=AUTH_HEADER,
+        json={"player_tag": "ghost"},
+    )
+    assert r.status_code == 201
+    assert db.tracked.inserted is not None
+    assert db.tracked.inserted["display_name"] == "Unknown player"
+
+
+def test_patch_tracked_player_display_name(client, monkeypatch):
+    class UpdateChain:
+        def __init__(self):
+            self.updated: dict | None = None
+
+        def update(self, row):
+            self.updated = row
+            return self
+
+        def eq(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type(
+                "R",
+                (),
+                {
+                    "data": [
+                        {
+                            "player_tag": "#X",
+                            "display_name": self.updated["display_name"],
+                            "note": None,
+                            "added_at": "2026-01-01",
+                        }
+                    ]
+                },
+            )()
+
+    mock = UpdateChain()
+
+    class _FakeDb:
+        def table(self, _name):
+            return mock
+
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: _FakeDb())
+
+    r = client.patch(
+        "/api/tracked-players/%23X",
+        headers=AUTH_HEADER,
+        json={"display_name": "New Label"},
+    )
+    assert r.status_code == 200
+    assert r.json()["display_name"] == "New Label"
+    assert mock.updated == {"display_name": "New Label"}
+
+
+def test_patch_tracked_player_not_found(client, monkeypatch):
+    class UpdateChain:
+        def update(self, row):
+            return self
+
+        def eq(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": []})()
+
+    mock = UpdateChain()
+
+    class _FakeDb2:
+        def table(self, _name):
+            return mock
+
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: _FakeDb2())
+
+    r = client.patch(
+        "/api/tracked-players/%23MISSING",
+        headers=AUTH_HEADER,
+        json={"display_name": "Nope"},
+    )
+    assert r.status_code == 404

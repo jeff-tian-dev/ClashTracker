@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 class TrackedPlayerCreate(BaseModel):
     player_tag: str
-    display_name: str
+    """Omit to resolve from `players` table, else fall back to \"Unknown player\"."""
+    display_name: str | None = None
     note: str | None = None
 
     @model_validator(mode="before")
@@ -21,6 +22,18 @@ class TrackedPlayerCreate(BaseModel):
         if isinstance(data, dict) and "display_name" not in data and "name" in data:
             return {**data, "display_name": data["name"]}
         return data
+
+    @field_validator("display_name")
+    @classmethod
+    def display_name_optional_strip(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = (v or "").strip()
+        return s if s else None
+
+
+class TrackedPlayerUpdate(BaseModel):
+    display_name: str
 
     @field_validator("display_name")
     @classmethod
@@ -36,6 +49,16 @@ def _normalize_player_tag(raw: str) -> str:
     if not tag.startswith("#"):
         tag = f"#{tag}"
     return tag
+
+
+def _resolve_display_name_from_players(db, tag: str) -> str:
+    pres = db.table("players").select("name").eq("tag", tag).limit(1).execute()
+    rows = pres.data or []
+    if rows:
+        n = (rows[0].get("name") or "").strip()
+        if n:
+            return n
+    return "Unknown player"
 
 
 @router.get("/tracked-players")
@@ -90,7 +113,12 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
     db = get_db()
     logger.debug("add tracked_players", extra={"event": "api.db.write", "table": "tracked_players"})
     tag = _normalize_player_tag(body.player_tag)
-    row = {"player_tag": tag, "display_name": body.display_name, "note": body.note}
+    display_name = (
+        body.display_name
+        if body.display_name
+        else _resolve_display_name_from_players(db, tag)
+    )
+    row = {"player_tag": tag, "display_name": display_name, "note": body.note}
     try:
         resp = db.table("tracked_players").insert(row).execute()
     except Exception as exc:
@@ -128,6 +156,33 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
         )
         return row
     out = resp.data[0]
+    if isinstance(out, dict):
+        if "display_name" not in out and out.get("name") is not None:
+            out["display_name"] = out["name"]
+        out.pop("name", None)
+    return out
+
+
+@router.patch("/tracked-players/{tag:path}")
+def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends(require_admin)):
+    db = get_db()
+    logger.debug(
+        "patch tracked_players",
+        extra={"event": "api.db.write", "table": "tracked_players", "player_tag": tag},
+    )
+    resp = (
+        db.table("tracked_players")
+        .update({"display_name": body.display_name})
+        .eq("player_tag", tag)
+        .execute()
+    )
+    rows = resp.data or []
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "player_tag": tag, "hint": "No July roster row for this tag."},
+        )
+    out = rows[0]
     if isinstance(out, dict):
         if "display_name" not in out and out.get("name") is not None:
             out["display_name"] = out["name"]

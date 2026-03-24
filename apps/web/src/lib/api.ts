@@ -58,15 +58,18 @@ export const api = {
     authedRequest<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
   trackedPlayers: () => request<{ data: TrackedPlayer[] }>("/api/tracked-players"),
-  addTrackedPlayer: (
-    player_tag: string,
-    display_name: string,
-    note: string | undefined,
-    key: string,
-  ) =>
+  addTrackedPlayer: (player_tag: string, note: string | undefined, key: string) =>
     authedRequest<TrackedPlayer>("/api/tracked-players", key, {
       method: "POST",
-      body: JSON.stringify({ player_tag, display_name, note }),
+      body: JSON.stringify({
+        player_tag,
+        ...(note != null && note.trim() !== "" ? { note: note.trim() } : {}),
+      }),
+    }),
+  updateTrackedPlayerDisplayName: (tag: string, display_name: string, key: string) =>
+    authedRequest<TrackedPlayer>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, {
+      method: "PATCH",
+      body: JSON.stringify({ display_name }),
     }),
   removeTrackedPlayer: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
