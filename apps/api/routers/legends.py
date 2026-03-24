@@ -63,13 +63,18 @@ def legends_leaderboard():
         return {"data": [], "legends_day": legends_day}
 
     player_tags = list(agg.keys())
-    player_resp = (
-        db.table("players")
-        .select("tag, name, trophies")
-        .in_("tag", player_tags)
-        .execute()
-    )
-    player_map = {p["tag"]: p for p in (player_resp.data or [])}
+    player_map: dict = {}
+    _chunk = 100
+    for i in range(0, len(player_tags), _chunk):
+        batch = player_tags[i : i + _chunk]
+        player_resp = (
+            db.table("players")
+            .select("tag, name, trophies")
+            .in_("tag", batch)
+            .execute()
+        )
+        for p in player_resp.data or []:
+            player_map[p["tag"]] = p
 
     rows = []
     for tag, totals in agg.items():
