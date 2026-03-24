@@ -21,8 +21,7 @@ configure_logging("api")
 from fastapi import FastAPI, Request, Response  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
-from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
-from fastapi.staticfiles import StaticFiles  # noqa: E402
+from fastapi.responses import JSONResponse  # noqa: E402
 
 from .routers import admin, dashboard, health, legends, players, raids, tracked_clans, tracked_players, wars  # noqa: E402
 
@@ -105,6 +104,7 @@ _origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://jeff-tian-dev.github.io",
+    "https://clashtracker.duckdns.org",
     *[o.strip() for o in _extra_origins if o.strip()],
 ]
 
@@ -125,14 +125,3 @@ app.include_router(tracked_clans.router)
 app.include_router(tracked_players.router)
 app.include_router(admin.router)
 
-_static_dir = Path(__file__).resolve().parent.parent.parent / "static"
-if _static_dir.is_dir():
-    app.mount("/assets", StaticFiles(directory=_static_dir / "assets"), name="static-assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_spa(full_path: str):
-        """Serve the React SPA for any non-API route."""
-        file_path = _static_dir / full_path
-        if full_path and file_path.is_file():
-            return FileResponse(file_path)
-        return FileResponse(_static_dir / "index.html")

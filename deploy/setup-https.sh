@@ -3,12 +3,15 @@
 # Enable HTTPS on the Oracle VM using Caddy + Let's Encrypt.
 # Run this AFTER you have a domain pointing to your VM's public IP.
 #
-# Usage:  bash deploy/setup-https.sh YOUR_DOMAIN
-# Example: bash deploy/setup-https.sh clashtracker.duckdns.org
+# Usage:  bash deploy/setup-https.sh YOUR_API_DOMAIN
+# Example: bash deploy/setup-https.sh clashtracker-api.duckdns.org
+#
+# Use a hostname that points at THIS VM (API only). The public React app should be on
+# GitHub Pages with a different hostname (e.g. clashtracker.duckdns.org → GitHub).
 #
 # Prerequisites:
-#   1. Create a free subdomain at https://www.duckdns.org (e.g. clashtracker.duckdns.org)
-#   2. Point the domain to your VM's public IP (DuckDNS does this when you create it)
+#   1. Create a DuckDNS subdomain for the API, e.g. clashtracker-api.duckdns.org → your VM IP
+#   2. Point that hostname to your VM's public IP (DuckDNS "current ip")
 #   3. Open ports 80 and 443 in Oracle Cloud Security List (VCN -> Security Lists -> Ingress)
 #
 set -euo pipefail
@@ -16,7 +19,7 @@ set -euo pipefail
 DOMAIN="${1:-}"
 if [ -z "$DOMAIN" ]; then
     echo "Usage: bash deploy/setup-https.sh YOUR_DOMAIN"
-    echo "Example: bash deploy/setup-https.sh clashtracker.duckdns.org"
+    echo "Example: bash deploy/setup-https.sh clashtracker-api.duckdns.org"
     exit 1
 fi
 
@@ -28,7 +31,7 @@ echo "=== Enabling HTTPS for $DOMAIN ==="
 echo "[1/4] Installing Caddy..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl
-curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | sudo gpg --batch --no-tty --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
 curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | sudo tee /etc/apt/sources.list.d/caddy-stable.list
 sudo apt-get update -qq
 sudo apt-get install -y -qq caddy
@@ -64,6 +67,6 @@ echo "=== HTTPS setup complete ==="
 echo "  API (HTTPS): https://$DOMAIN"
 echo "  Health:      https://$DOMAIN/health"
 echo ""
-echo "Update your frontend to use: VITE_API_URL=https://$DOMAIN"
-echo "Then rebuild and redeploy to GitHub Pages."
+echo "Set GitHub Actions / Vite VITE_API_URL to: https://$DOMAIN"
+echo "Rebuild GitHub Pages after DNS for the Pages domain points to GitHub (not this VM)."
 echo ""

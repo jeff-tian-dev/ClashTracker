@@ -47,10 +47,13 @@ Write-Host "=== Deploying to $User@$ServerIP ===" -ForegroundColor Cyan
 Write-Host "[1/4] Creating remote directory..."
 ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir"
 
-# ---- 2. Copy only what the VM needs (api, ingestion, shared — NOT web/node_modules) ----
+# ---- 2. Copy only backend (api, ingestion, shared — no web, no static SPA) ----
 Write-Host "[2/4] Copying files to VM..."
 
 ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
+
+# Drop any legacy static/ tree from older deploys (UI is GitHub Pages only).
+ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/static"
 
 # Fresh tree for Python apps: Windows OpenSSH recursive scp can leave stale files (e.g. new modules missing).
 ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared"
@@ -61,7 +64,6 @@ $FilesToCopy = @(
     "apps/api",
     "apps/ingestion",
     "apps/shared",
-    "supabase",
     "deploy",
     ".env.local"
 )
