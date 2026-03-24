@@ -81,6 +81,11 @@ def ingest_legends(client) -> None:
     )
 
 
+_LOOKBACK_DAYS = 3
+# Legends League allows at most 8 attacks and 8 defenses per legends day.
+_MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY = 8
+
+
 def _ingest_player_legends(
     client, player_tag: str, legends_day_str: str, now_iso: str
 ) -> None:
@@ -93,9 +98,12 @@ def _ingest_player_legends(
     if not legend_battles:
         return
 
-    existing_keys = db.get_existing_legends_keys(player_tag, legends_day_str)
+    since_day = (current_legends_day() - timedelta(days=_LOOKBACK_DAYS)).isoformat()
+    seen_keys = db.get_recent_legends_keys(player_tag, since_day)
 
-    rows_to_upsert: list[dict] = []
+    # Battles not yet in DB (any day in lookback), in API order (oldest → newest).
+    new_attack_battles: list[dict] = []
+    new_defense_battles: list[dict] = []
     for battle in legend_battles:
         is_attack = battle.get("attack", True)
         stars = battle.get("stars", 0)
@@ -103,11 +111,35 @@ def _ingest_player_legends(
         opponent_tag = battle.get("opponentPlayerTag", "")
 
         dedup_key = (opponent_tag, is_attack, stars, destruction_pct)
-        if dedup_key in existing_keys:
+        if dedup_key in seen_keys:
             continue
 
-        trophies = calculate_trophies(stars, destruction_pct)
+        if is_attack:
+            new_attack_battles.append(battle)
+        else:
+            new_defense_battles.append(battle)
 
+    db_attack_count, db_defense_count = db.get_legends_day_attack_defense_counts(
+        player_tag, legends_day_str
+    )
+    attack_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_attack_count)
+    defense_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_defense_count)
+
+    # Prefer the newest battles (tail of API list) up to remaining slots. This avoids
+    # stuffing prior-season rows when the log is a rolling window without timestamps.
+    take_attacks = min(len(new_attack_battles), attack_slots)
+    take_defenses = min(len(new_defense_battles), defense_slots)
+    selected_attacks = new_attack_battles[-take_attacks:] if take_attacks else []
+    selected_defenses = new_defense_battles[-take_defenses:] if take_defenses else []
+
+    rows_to_upsert: list[dict] = []
+    for battle in selected_attacks + selected_defenses:
+        is_attack = battle.get("attack", True)
+        stars = battle.get("stars", 0)
+        destruction_pct = battle.get("destructionPercentage", 0)
+        opponent_tag = battle.get("opponentPlayerTag", "")
+
+        trophies = calculate_trophies(stars, destruction_pct)
         opponent_name = _resolve_opponent_name(client, opponent_tag)
 
         rows_to_upsert.append({
@@ -121,7 +153,7 @@ def _ingest_player_legends(
             "legends_day": legends_day_str,
             "first_seen_at": now_iso,
         })
-        existing_keys.add(dedup_key)
+        seen_keys.add((opponent_tag, is_attack, stars, destruction_pct))
 
     if rows_to_upsert:
         db.upsert_legends_battles_batch(rows_to_upsert)

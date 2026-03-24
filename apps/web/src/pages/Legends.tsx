@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Heading, Table, Text, Dialog, Flex, Badge } from "@radix-ui/themes";
+import { Box, Heading, Table, Text, Dialog, Flex, Badge, Select } from "@radix-ui/themes";
 import {
   api,
   LegendsLeaderboardEntry,
@@ -68,6 +68,8 @@ export function Legends() {
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [detail, setDetail] = useState<LegendsPlayerDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [availableLegendsDays, setAvailableLegendsDays] = useState<string[]>([]);
+  const [modalSelectedDay, setModalSelectedDay] = useState("");
 
   useEffect(() => {
     setLoading(true);
@@ -80,12 +82,38 @@ export function Legends() {
       .finally(() => setLoading(false));
   }, []);
 
-  function openDetail(tag: string) {
+  async function openDetail(tag: string) {
     setSelectedTag(tag);
     setDetailLoading(true);
     setDetail(null);
+    setAvailableLegendsDays([]);
+    const initialDay = legendsDay || undefined;
+    if (initialDay) setModalSelectedDay(initialDay);
+    try {
+      const [daysRes, detailRes] = await Promise.all([
+        api.legendsPlayerDays(tag),
+        api.legendsPlayer(tag, initialDay),
+      ]);
+      const merged = Array.from(
+        new Set([...(initialDay ? [initialDay] : []), ...daysRes.legends_days])
+      ).sort((a, b) => b.localeCompare(a));
+      if (merged.length === 0 && detailRes.legends_day) {
+        merged.push(detailRes.legends_day);
+      }
+      setAvailableLegendsDays(merged);
+      setDetail(detailRes);
+      setModalSelectedDay(detailRes.legends_day);
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  function handleModalDayChange(day: string) {
+    if (!selectedTag || day === modalSelectedDay) return;
+    setModalSelectedDay(day);
+    setDetailLoading(true);
     api
-      .legendsPlayer(tag)
+      .legendsPlayer(selectedTag, day)
       .then(setDetail)
       .finally(() => setDetailLoading(false));
   }
@@ -156,18 +184,65 @@ export function Legends() {
         </Table.Root>
       )}
 
-      <Dialog.Root open={selectedTag !== null} onOpenChange={(open) => { if (!open) setSelectedTag(null); }}>
+      <Dialog.Root
+        open={selectedTag !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedTag(null);
+            setAvailableLegendsDays([]);
+            setModalSelectedDay("");
+          }
+        }}
+      >
         <Dialog.Content maxWidth="600px">
-          {detailLoading ? (
+          {detailLoading && !detail ? (
             <LoadingSpinner />
           ) : detail ? (
             <>
               <Dialog.Title>{detail.player_name}</Dialog.Title>
+
+              {availableLegendsDays.length > 0 && (
+                <Flex align="center" gap="3" mb="3" wrap="wrap">
+                  <Text size="2" weight="medium">
+                    Legends day
+                  </Text>
+                  <Select.Root
+                    value={modalSelectedDay}
+                    onValueChange={handleModalDayChange}
+                    disabled={detailLoading}
+                  >
+                    <Select.Trigger placeholder="Select day" />
+                    <Select.Content position="popper">
+                      {availableLegendsDays.map((d) => (
+                        <Select.Item key={d} value={d}>
+                          {d}
+                        </Select.Item>
+                      ))}
+                    </Select.Content>
+                  </Select.Root>
+                </Flex>
+              )}
+
               <Dialog.Description size="2" color="gray" mb="4">
-                {detail.current_trophies.toLocaleString()} trophies — {detail.legends_day}
+                {detail.is_current_legends_day ? (
+                  <>
+                    {detail.current_trophies.toLocaleString()} trophies — {detail.legends_day}
+                  </>
+                ) : (
+                  <>
+                    Viewing past legends day ({detail.legends_day}). Profile trophy count is your
+                    current live value, not end-of-that-day.
+                  </>
+                )}
               </Dialog.Description>
 
-              <Flex direction="column" gap="4">
+              {detailLoading ? (
+                <Flex justify="center" py="3">
+                  <LoadingSpinner />
+                </Flex>
+              ) : null}
+
+              <Flex direction="column" gap="4" style={{ opacity: detailLoading ? 0.5 : 1 }}>
                 <Box>
                   <Heading size="3" mb="2">
                     Attacks ({detail.attacks.length}/8)

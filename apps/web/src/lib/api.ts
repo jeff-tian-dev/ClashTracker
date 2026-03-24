@@ -67,8 +67,15 @@ export const api = {
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
   legends: () => request<LegendsLeaderboard>("/api/legends"),
-  legendsPlayer: (tag: string) =>
-    request<LegendsPlayerDetail>(`/api/legends/${encodeURIComponent(tag)}`),
+  legendsPlayerDays: (tag: string) =>
+    request<{ legends_days: string[] }>(`/api/legends/${encodeURIComponent(tag)}/days`),
+  legendsPlayer: (tag: string, legendsDay?: string) => {
+    const qs =
+      legendsDay != null && legendsDay !== ""
+        ? `?legends_day=${encodeURIComponent(legendsDay)}`
+        : "";
+    return request<LegendsPlayerDetail>(`/api/legends/${encodeURIComponent(tag)}${qs}`);
+  },
 
   verifyAdmin: (key: string) =>
     authedRequest<{ ok: boolean }>("/api/admin/verify", key, { method: "POST" }),
@@ -228,6 +235,7 @@ export interface LegendsPlayerDetail {
   player_name: string;
   current_trophies: number;
   legends_day: string;
+  is_current_legends_day: boolean;
   attacks: LegendsBattle[];
   defenses: LegendsBattle[];
 }

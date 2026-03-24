@@ -1,7 +1,7 @@
 import logging
 from datetime import date, datetime, time, timezone, timedelta
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from ..database import get_db
 
@@ -80,21 +80,55 @@ def legends_leaderboard():
     return {"data": rows, "legends_day": legends_day}
 
 
-@router.get("/legends/{tag:path}")
-def legends_player_detail(tag: str):
+@router.get("/legends/{tag}/days")
+def legends_player_days(tag: str):
+    """Distinct legends_day values for this player (newest first)."""
     db = get_db()
-    legends_day = _current_legends_day().isoformat()
+    resp = (
+        db.table("legends_battles")
+        .select("legends_day")
+        .eq("player_tag", tag)
+        .execute()
+    )
+    days = sorted({r["legends_day"] for r in (resp.data or [])}, reverse=True)
+    return {"legends_days": days}
+
+
+@router.get("/legends/{tag:path}")
+def legends_player_detail(
+    tag: str,
+    legends_day: str | None = Query(default=None, description="YYYY-MM-DD; omit for current legends day"),
+):
+    db = get_db()
+    current_str = _current_legends_day().isoformat()
+    if legends_day is None:
+        chosen = current_str
+    else:
+        try:
+            chosen = date.fromisoformat(legends_day).isoformat()
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_legends_day", "message": "legends_day must be YYYY-MM-DD"},
+            )
+
+    is_current_legends_day = chosen == current_str
 
     logger.debug(
         "legends player detail",
-        extra={"event": "api.db.query", "table": "legends_battles", "player_tag": tag},
+        extra={
+            "event": "api.db.query",
+            "table": "legends_battles",
+            "player_tag": tag,
+            "legends_day": chosen,
+        },
     )
 
     resp = (
         db.table("legends_battles")
         .select("*")
         .eq("player_tag", tag)
-        .eq("legends_day", legends_day)
+        .eq("legends_day", chosen)
         .order("first_seen_at", desc=True)
         .execute()
     )
@@ -112,7 +146,8 @@ def legends_player_detail(tag: str):
         "player_tag": tag,
         "player_name": player["name"],
         "current_trophies": player["trophies"],
-        "legends_day": legends_day,
+        "legends_day": chosen,
+        "is_current_legends_day": is_current_legends_day,
         "attacks": attacks,
         "defenses": defenses,
     }
