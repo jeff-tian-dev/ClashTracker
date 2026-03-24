@@ -6,7 +6,7 @@ from tests.test_admin import ADMIN_KEY, AUTH_HEADER
 
 
 def test_post_tracked_players_without_auth_returns_401(client):
-    r = client.post("/api/tracked-players", json={"player_tag": "#ABC"})
+    r = client.post("/api/tracked-players", json={"player_tag": "#ABC", "name": "Player"})
     assert r.status_code == 401
 
 
@@ -37,11 +37,12 @@ def test_add_tracked_player_normalizes_tag(client, monkeypatch):
     r = client.post(
         "/api/tracked-players",
         headers=AUTH_HEADER,
-        json={"player_tag": "xyz99", "note": "scout"},
+        json={"player_tag": "xyz99", "name": "Scout One", "note": "scout"},
     )
     assert r.status_code == 201
     assert mock.inserted is not None
     assert mock.inserted["player_tag"] == "#XYZ99"
+    assert mock.inserted["name"] == "Scout One"
     assert mock.inserted["note"] == "scout"
 
 

@@ -58,10 +58,15 @@ export const api = {
     authedRequest<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
   trackedPlayers: () => request<{ data: TrackedPlayer[] }>("/api/tracked-players"),
-  addTrackedPlayer: (player_tag: string, note: string | undefined, key: string) =>
+  addTrackedPlayer: (
+    player_tag: string,
+    name: string,
+    note: string | undefined,
+    key: string,
+  ) =>
     authedRequest<TrackedPlayer>("/api/tracked-players", key, {
       method: "POST",
-      body: JSON.stringify({ player_tag, note }),
+      body: JSON.stringify({ player_tag, name, note }),
     }),
   removeTrackedPlayer: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
@@ -197,6 +202,7 @@ export interface TrackedClan {
 
 export interface TrackedPlayer {
   player_tag: string;
+  name: string;
   note: string | null;
   added_at: string;
 }

@@ -22,6 +22,7 @@ export function TrackedPlayers() {
   const [rows, setRows] = useState<TrackedPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTag, setNewTag] = useState("");
+  const [newName, setNewName] = useState("");
   const [newNote, setNewNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,12 +41,18 @@ export function TrackedPlayers() {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    if (!newTag.trim() || !adminKey) return;
+    if (!newTag.trim() || !newName.trim() || !adminKey) return;
     setSubmitting(true);
     setError(null);
     try {
-      await api.addTrackedPlayer(newTag.trim(), newNote.trim() || undefined, adminKey);
+      await api.addTrackedPlayer(
+        newTag.trim(),
+        newName.trim(),
+        newNote.trim() || undefined,
+        adminKey,
+      );
       setNewTag("");
+      setNewName("");
       setNewNote("");
       load();
     } catch (err) {
@@ -91,6 +98,16 @@ export function TrackedPlayers() {
               </Box>
               <Box style={{ flex: 1, minWidth: 200 }}>
                 <Text as="label" size="2" weight="medium" mb="1">
+                  Name
+                </Text>
+                <TextField.Root
+                  placeholder="In-game name"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                />
+              </Box>
+              <Box style={{ flex: 1, minWidth: 200 }}>
+                <Text as="label" size="2" weight="medium" mb="1">
                   Note (optional)
                 </Text>
                 <TextField.Root
@@ -99,7 +116,7 @@ export function TrackedPlayers() {
                   onChange={(e) => setNewNote(e.target.value)}
                 />
               </Box>
-              <Button type="submit" disabled={submitting || !newTag.trim()}>
+              <Button type="submit" disabled={submitting || !newTag.trim() || !newName.trim()}>
                 <PlusIcon /> Add
               </Button>
             </Flex>
@@ -119,12 +136,13 @@ export function TrackedPlayers() {
       {loading ? (
         <LoadingSpinner />
       ) : rows.length === 0 ? (
-        <EmptyState message="No always-tracked players. Admins can add tags above." />
+        <EmptyState message="No always-tracked players. Admins can add tag and name above." />
       ) : (
         <Table.Root variant="surface">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
               {isAdmin && <Table.ColumnHeaderCell />}
@@ -136,6 +154,7 @@ export function TrackedPlayers() {
                 <Table.Cell>
                   <Text weight="medium">{r.player_tag}</Text>
                 </Table.Cell>
+                <Table.Cell>{r.name?.trim() ? r.name : "—"}</Table.Cell>
                 <Table.Cell>{r.note || "—"}</Table.Cell>
                 <Table.Cell>{new Date(r.added_at).toLocaleDateString()}</Table.Cell>
                 {isAdmin && (
@@ -149,8 +168,8 @@ export function TrackedPlayers() {
                       <Dialog.Content maxWidth="400px">
                         <Dialog.Title>Remove always-track</Dialog.Title>
                         <Dialog.Description>
-                          Stop always-tracking {r.player_tag}? They will only update again if in a tracked
-                          clan.
+                          Stop always-tracking {r.name?.trim() || r.player_tag} ({r.player_tag})? They will
+                          only update again if in a tracked clan.
                         </Dialog.Description>
                         <Flex gap="3" mt="4" justify="end">
                           <Dialog.Close>

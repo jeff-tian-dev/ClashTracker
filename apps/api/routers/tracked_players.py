@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from ..auth import require_admin
 from ..database import get_db
@@ -12,7 +12,16 @@ logger = logging.getLogger(__name__)
 
 class TrackedPlayerCreate(BaseModel):
     player_tag: str
+    name: str
     note: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_stripped_nonempty(cls, v: str) -> str:
+        s = (v or "").strip()
+        if not s:
+            raise ValueError("name is required")
+        return s
 
 
 def _normalize_player_tag(raw: str) -> str:
@@ -52,7 +61,7 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
     db = get_db()
     logger.debug("add tracked_players", extra={"event": "api.db.write", "table": "tracked_players"})
     tag = _normalize_player_tag(body.player_tag)
-    row = {"player_tag": tag, "note": body.note}
+    row = {"player_tag": tag, "name": body.name, "note": body.note}
     try:
         resp = db.table("tracked_players").insert(row).execute()
     except Exception as exc:
