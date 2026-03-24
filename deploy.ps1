@@ -39,63 +39,66 @@ if (-not (Test-Path $KeyPath)) { Write-Error "SSH key not found at $KeyPath"; ex
 
 $User = "ubuntu"
 $RemoteDir = "/home/ubuntu/clash-tracker"
-$SSHOpts = @("-i", $KeyPath, "-o", "StrictHostKeyChecking=no")
+$SSHOpts = @(
+    "-i", $KeyPath,
+    "-o", "StrictHostKeyChecking=no",
+    "-o", "ConnectTimeout=30",
+    "-o", "ServerAliveInterval=15",
+    "-o", "ServerAliveCountMax=3"
+)
 
 Write-Host "=== Deploying to $User@$ServerIP ===" -ForegroundColor Cyan
 
 # ---- 1. Create remote directory ----
-Write-Host "[1/4] Creating remote directory..."
+Write-Host "[1/5] Creating remote directory..."
 ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir"
 
 # ---- 2. Copy only backend (api, ingestion, shared — no web, no static SPA) ----
-Write-Host "[2/4] Copying files to VM..."
+# One .tar.gz + single scp is faster and more reliable than recursive scp (fewer round trips, compression).
+Write-Host "[2/5] Copying files to VM..."
 
-ssh @SSHOpts "$User@$ServerIP" "mkdir -p $RemoteDir/apps"
+# One SSH session for remote prep (fewer round trips than separate calls).
+$remotePrep = "mkdir -p $RemoteDir/apps && rm -rf $RemoteDir/static $RemoteDir/apps/web $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared $RemoteDir/api $RemoteDir/ingestion $RemoteDir/shared"
+ssh @SSHOpts "$User@$ServerIP" $remotePrep
 
-# Drop any legacy static/ tree from older deploys (UI is GitHub Pages only).
-ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/static"
+$RemoteTar = "/tmp/clash-tracker-deploy.tar.gz"
+$LocalTar = Join-Path ([System.IO.Path]::GetTempPath()) ("clash-tracker-deploy-" + [Guid]::NewGuid().ToString("n") + ".tar.gz")
 
-# Drop legacy apps/web (node_modules); backend-only deploy — UI is GitHub Pages.
-ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/web"
+try {
+    Write-Host "  Building archive (apps/api, apps/ingestion, apps/shared, deploy, .env.local)..."
+    $tarArgs = @(
+        "-czf", $LocalTar,
+        "-C", $ProjectRoot,
+        "apps/api", "apps/ingestion", "apps/shared", "deploy", ".env.local"
+    )
+    & tar @tarArgs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "tar failed (exit $LASTEXITCODE). Is GNU/BSD tar available? (Windows 10+ includes tar.exe.)"
+    }
 
-# Fresh tree for Python apps: Windows OpenSSH recursive scp can leave stale files (e.g. new modules missing).
-ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/apps/api $RemoteDir/apps/ingestion $RemoteDir/apps/shared"
-# Remove mistaken top-level copies from older deploy.ps1 (scp -r apps/api to RemoteDir/ created api/, not apps/api).
-ssh @SSHOpts "$User@$ServerIP" "rm -rf $RemoteDir/api $RemoteDir/ingestion $RemoteDir/shared"
+    Write-Host "  Uploading bundle..."
+    scp @SSHOpts $LocalTar "${User}@${ServerIP}:${RemoteTar}"
 
-$FilesToCopy = @(
-    "apps/api",
-    "apps/ingestion",
-    "apps/shared",
-    "deploy",
-    ".env.local"
-)
-
-foreach ($item in $FilesToCopy) {
-    $localPath = Join-Path $ProjectRoot $item
-    if (Test-Path $localPath -PathType Container) {
-        Write-Host "  Syncing directory: $item"
-        # scp -r apps/api host:remote/ puts folder as remote/api — target must be remote/apps/ to get remote/apps/api.
-        $parentRel = Split-Path -Parent $item
-        if ([string]::IsNullOrEmpty($parentRel)) {
-            $remoteParent = $RemoteDir
-        } else {
-            $remoteParent = "$RemoteDir/$($parentRel.Replace('\', '/'))"
-        }
-        ssh @SSHOpts "$User@$ServerIP" "mkdir -p $remoteParent"
-        scp @SSHOpts -r $localPath "${User}@${ServerIP}:${remoteParent}/"
-    } else {
-        Write-Host "  Copying file: $item"
-        scp @SSHOpts $localPath "${User}@${ServerIP}:${RemoteDir}/$item"
+    Write-Host "  Extracting on server..."
+    $extractCmd = "cd $RemoteDir && tar -xzf $RemoteTar && rm -f $RemoteTar"
+    ssh @SSHOpts "$User@$ServerIP" $extractCmd
+}
+finally {
+    if (Test-Path $LocalTar) {
+        Remove-Item -Force $LocalTar -ErrorAction SilentlyContinue
     }
 }
 
 # ---- 3. Run setup script on VM ----
-Write-Host "[3/4] Running setup on VM..."
+Write-Host "[3/5] Running setup on VM..."
 ssh @SSHOpts "$User@$ServerIP" "bash $RemoteDir/deploy/setup-vm.sh"
 
-# ---- 4. Verify ----
-Write-Host "[4/4] Verifying API health..."
+# ---- 4. Restart API so uvicorn loads new code (enable --now does not restart a running unit) ----
+Write-Host "[4/5] Restarting clash-tracker-api..."
+ssh @SSHOpts "$User@$ServerIP" "sudo systemctl restart clash-tracker-api"
+
+# ---- 5. Verify ----
+Write-Host "[5/5] Verifying API health..."
 Start-Sleep -Seconds 3
 try {
     $health = Invoke-RestMethod -Uri "http://${ServerIP}:8000/health" -TimeoutSec 10
