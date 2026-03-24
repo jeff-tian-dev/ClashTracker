@@ -100,7 +100,7 @@ def legends_leaderboard():
             "has_battles": tag in tags_with_battles,
         })
 
-    rows.sort(key=lambda r: r["net"], reverse=True)
+    rows.sort(key=lambda r: (-r["final_trophies"], -r["net"]))
     for i, row in enumerate(rows, 1):
         row["rank"] = i
 
