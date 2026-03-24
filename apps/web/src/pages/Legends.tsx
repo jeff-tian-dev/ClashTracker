@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Heading, Table, Text, Dialog, Flex, Badge, Select } from "@radix-ui/themes";
+import { Box, Heading, Table, Text, Dialog, Flex, Badge, Select, Callout } from "@radix-ui/themes";
 import {
   api,
   LegendsLeaderboardEntry,
@@ -71,6 +71,7 @@ export function Legends() {
   const [entries, setEntries] = useState<LegendsLeaderboardEntry[]>([]);
   const [legendsDay, setLegendsDay] = useState("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [detail, setDetail] = useState<LegendsPlayerDetail | null>(null);
@@ -80,11 +81,18 @@ export function Legends() {
 
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
     api
       .legends()
       .then((res) => {
+        setLoadError(null);
         setEntries(res.data);
         setLegendsDay(res.legends_day);
+      })
+      .catch((err: unknown) => {
+        setEntries([]);
+        setLegendsDay("");
+        setLoadError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -140,6 +148,13 @@ export function Legends() {
 
       {loading ? (
         <LoadingSpinner />
+      ) : loadError ? (
+        <Callout.Root color="red" role="alert">
+          <Callout.Text weight="medium">Could not load the Legends leaderboard.</Callout.Text>
+          <Text size="2" color="gray" mt="1" as="p">
+            {loadError}
+          </Text>
+        </Callout.Root>
       ) : entries.length === 0 ? (
         <EmptyState message="No players in Legends League in the roster yet." />
       ) : (
