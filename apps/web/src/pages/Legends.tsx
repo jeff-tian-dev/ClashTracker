@@ -9,6 +9,13 @@ import {
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 
+/** Dedup archive days — not shown in the modal date picker (matches API filter). */
+const HIDDEN_LEGENDS_DAYS = new Set(["2026-03-22"]);
+
+function filterVisibleLegendsDays(days: string[]): string[] {
+  return days.filter((d) => !HIDDEN_LEGENDS_DAYS.has(d));
+}
+
 function Stars({ count }: { count: number }) {
   return (
     <Flex gap="1" align="center">
@@ -94,10 +101,12 @@ export function Legends() {
         api.legendsPlayerDays(tag),
         api.legendsPlayer(tag, initialDay),
       ]);
-      const merged = Array.from(
-        new Set([...(initialDay ? [initialDay] : []), ...daysRes.legends_days])
-      ).sort((a, b) => b.localeCompare(a));
-      if (merged.length === 0 && detailRes.legends_day) {
+      const merged = filterVisibleLegendsDays(
+        Array.from(
+          new Set([...(initialDay ? [initialDay] : []), ...daysRes.legends_days])
+        ).sort((a, b) => b.localeCompare(a))
+      );
+      if (merged.length === 0 && detailRes.legends_day && !HIDDEN_LEGENDS_DAYS.has(detailRes.legends_day)) {
         merged.push(detailRes.legends_day);
       }
       setAvailableLegendsDays(merged);

@@ -10,6 +10,9 @@ logger = logging.getLogger(__name__)
 
 _LEGENDS_RESET_HOUR_UTC = 5
 
+# Dedup-only archive dates (e.g. rows moved off the live day) — omit from player day picker.
+_HIDDEN_FROM_LEGENDS_DAY_PICKER: frozenset[str] = frozenset({"2026-03-22"})
+
 
 def _current_legends_day() -> date:
     now = datetime.now(timezone.utc)
@@ -91,6 +94,7 @@ def legends_player_days(tag: str):
         .execute()
     )
     days = sorted({r["legends_day"] for r in (resp.data or [])}, reverse=True)
+    days = [d for d in days if d not in _HIDDEN_FROM_LEGENDS_DAY_PICKER]
     return {"legends_days": days}
 
 
@@ -111,6 +115,12 @@ def legends_player_detail(
                 status_code=400,
                 detail={"error": "invalid_legends_day", "message": "legends_day must be YYYY-MM-DD"},
             )
+
+    if chosen in _HIDDEN_FROM_LEGENDS_DAY_PICKER:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "legends_day_hidden", "message": "This legends day is not available."},
+        )
 
     is_current_legends_day = chosen == current_str
 
