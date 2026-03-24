@@ -1,5 +1,16 @@
-import { useEffect, useState } from "react";
-import { Box, Heading, Table, Text, Dialog, Flex, Badge, Select, Callout } from "@radix-ui/themes";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Box,
+  Heading,
+  Table,
+  Text,
+  Dialog,
+  Flex,
+  Badge,
+  Select,
+  Callout,
+  Switch,
+} from "@radix-ui/themes";
 import {
   api,
   LegendsLeaderboardEntry,
@@ -26,6 +37,48 @@ function Stars({ count }: { count: number }) {
       ))}
     </Flex>
   );
+}
+
+function compareLegendsTrophyOrder(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry) {
+  if (b.final_trophies !== a.final_trophies) return b.final_trophies - a.final_trophies;
+  return b.net - a.net;
+}
+
+type LegendsDisplayRow = {
+  entry: LegendsLeaderboardEntry;
+  rankShown: number;
+  rankStruckThrough: boolean;
+  julyMuted: boolean;
+};
+
+function buildLegendsDisplayRows(
+  entries: LegendsLeaderboardEntry[],
+  julyOnly: boolean,
+): LegendsDisplayRow[] {
+  if (!julyOnly) {
+    return entries.map((entry) => ({
+      entry,
+      rankShown: entry.rank,
+      rankStruckThrough: false,
+      julyMuted: false,
+    }));
+  }
+  const isJuly = (e: LegendsLeaderboardEntry) => Boolean(e.is_always_tracked);
+  const july = entries.filter(isJuly).sort(compareLegendsTrophyOrder);
+  const other = entries.filter((e) => !isJuly(e)).sort(compareLegendsTrophyOrder);
+  const out: LegendsDisplayRow[] = [];
+  july.forEach((entry, i) => {
+    out.push({ entry, rankShown: i + 1, rankStruckThrough: false, julyMuted: false });
+  });
+  other.forEach((entry) => {
+    out.push({
+      entry,
+      rankShown: entry.rank,
+      rankStruckThrough: true,
+      julyMuted: true,
+    });
+  });
+  return out;
 }
 
 function BattleTable({ battles, type }: { battles: LegendsBattle[]; type: "attack" | "defense" }) {
@@ -78,6 +131,12 @@ export function Legends() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [availableLegendsDays, setAvailableLegendsDays] = useState<string[]>([]);
   const [modalSelectedDay, setModalSelectedDay] = useState("");
+  const [julyOnly, setJulyOnly] = useState(false);
+
+  const displayRows = useMemo(
+    () => buildLegendsDisplayRows(entries, julyOnly),
+    [entries, julyOnly],
+  );
 
   useEffect(() => {
     setLoading(true);
@@ -137,14 +196,36 @@ export function Legends() {
 
   return (
     <Box>
-      <Flex align="baseline" gap="3" mb="4">
-        <Heading size="6">Legends League</Heading>
-        {legendsDay && (
-          <Text size="2" color="gray">
-            Day: {legendsDay}
+      <Flex align="center" justify="between" gap="4" wrap="wrap" mb="4">
+        <Flex align="baseline" gap="3" wrap="wrap">
+          <Heading size="6">Legends League</Heading>
+          {legendsDay && (
+            <Text size="2" color="gray">
+              Day: {legendsDay}
+            </Text>
+          )}
+        </Flex>
+        <label
+          htmlFor="legends-july-only"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "var(--space-2)",
+            cursor: "pointer",
+          }}
+        >
+          <Text size="2" weight="medium">
+            July only
           </Text>
-        )}
+          <Switch id="legends-july-only" checked={julyOnly} onCheckedChange={setJulyOnly} />
+        </label>
       </Flex>
+      {julyOnly && (
+        <Text size="2" color="gray" mb="3" style={{ display: "block", maxWidth: 720 }}>
+          July roster first (by final trophies). Everyone else is listed below with the full-leaderboard
+          rank struck through.
+        </Text>
+      )}
 
       {loading ? (
         <LoadingSpinner />
@@ -171,19 +252,34 @@ export function Legends() {
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {entries.map((e) => {
+            {displayRows.map(({ entry: e, rankShown, rankStruckThrough, julyMuted }) => {
               const hasBattles = e.has_battles !== false;
               return (
               <Table.Row
                 key={e.player_tag}
-                className="cursor-pointer hover:bg-[var(--gray-3)] transition-colors"
+                className={
+                  "cursor-pointer transition-colors hover:bg-[var(--gray-3)]" +
+                  (julyMuted ? " opacity-[0.55]" : "")
+                }
                 onClick={() => openDetail(e.player_tag)}
               >
                 <Table.Cell>
-                  <Text weight="medium">{e.rank}</Text>
+                  <Text
+                    weight="medium"
+                    color={rankStruckThrough ? "gray" : undefined}
+                    style={rankStruckThrough ? { textDecoration: "line-through" } : undefined}
+                  >
+                    {rankShown}
+                  </Text>
                 </Table.Cell>
                 <Table.Cell>
-                  <Text className="text-[var(--accent-11)] font-medium">{e.name}</Text>
+                  <Text
+                    className={
+                      julyMuted ? "font-medium text-[var(--gray-11)]" : "text-[var(--accent-11)] font-medium"
+                    }
+                  >
+                    {e.name}
+                  </Text>
                 </Table.Cell>
                 <Table.Cell>
                   {hasBattles ? (

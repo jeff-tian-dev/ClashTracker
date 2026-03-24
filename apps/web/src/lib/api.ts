@@ -118,7 +118,7 @@ export interface Player {
   clan_capital_contributions: number;
   league_name: string | null;
   updated_at: string;
-  /** Set when no longer on any tracked clan roster (and not always-tracked). Detection time, not historical leave. */
+  /** Set when no longer on any tracked clan roster (and not on July roster). Detection time, not historical leave. */
   left_tracked_roster_at?: string | null;
   roster_sort_bucket?: number;
   is_always_tracked?: boolean;
@@ -218,6 +218,8 @@ export interface LegendsLeaderboardEntry {
   final_trophies: number;
   /** False when no battles this legends day; omit/true treated as activity (older API). */
   has_battles?: boolean;
+  /** Pinned "July" roster (tracked_players). */
+  is_always_tracked?: boolean;
 }
 
 export interface LegendsLeaderboard {

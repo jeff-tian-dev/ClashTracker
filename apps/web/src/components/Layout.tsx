@@ -25,7 +25,7 @@ const NAV_ITEMS = [
   { to: "/raids", label: "Capital Raids", icon: RocketIcon },
   { to: "/legends", label: "Legends", icon: StarFilledIcon },
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
-  { to: "/tracked-players", label: "Tracked Players", icon: BookmarkIcon },
+  { to: "/july-players", label: "July Players", icon: BookmarkIcon },
 ];
 
 function ThemeToggle() {

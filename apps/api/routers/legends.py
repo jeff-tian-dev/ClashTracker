@@ -70,6 +70,11 @@ def legends_leaderboard():
     if not agg:
         return {"data": [], "legends_day": legends_day}
 
+    always_tracked_tags = {
+        row["player_tag"]
+        for row in (db.table("tracked_players").select("player_tag").execute().data or [])
+    }
+
     player_tags = list(agg.keys())
     player_map: dict = {}
     _chunk = 100
@@ -98,6 +103,7 @@ def legends_leaderboard():
             "initial_trophies": current_trophies - net,
             "final_trophies": current_trophies,
             "has_battles": tag in tags_with_battles,
+            "is_always_tracked": tag in always_tracked_tags,
         })
 
     rows.sort(key=lambda r: (-r["final_trophies"], -r["net"]))

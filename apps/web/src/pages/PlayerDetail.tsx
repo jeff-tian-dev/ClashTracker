@@ -43,7 +43,7 @@ export function PlayerDetail() {
         <Badge variant="outline">{player.tag}</Badge>
         {player.is_always_tracked && (
           <Badge color="blue" variant="soft">
-            Always tracked
+            July
           </Badge>
         )}
         {player.left_tracked_roster_at && (

@@ -114,7 +114,7 @@ export function Players() {
                     <Flex gap="2" wrap="wrap" align="center">
                       {p.is_always_tracked && (
                         <Badge size="1" color="blue" variant="soft">
-                          Always tracked
+                          July
                         </Badge>
                       )}
                       {leftAt && (

@@ -75,10 +75,10 @@ export function TrackedPlayers() {
   return (
     <Box>
       <Heading size="6" mb="4">
-        Tracked Players
+        July Players
       </Heading>
       <Text size="2" color="gray" mb="4" style={{ display: "block", maxWidth: 640 }}>
-        Always-tracked players are refreshed every ingest run even if they are not in a tracked clan.
+        July roster players are refreshed every ingest run even if they are not in a tracked clan.
         Adding or removing requires admin.
       </Text>
 
@@ -129,14 +129,14 @@ export function TrackedPlayers() {
         </Card>
       ) : (
         <Text size="2" color="gray" mb="4">
-          Unlock admin in the sidebar to add or remove always-tracked players.
+          Unlock admin in the sidebar to add or remove July roster players.
         </Text>
       )}
 
       {loading ? (
         <LoadingSpinner />
       ) : rows.length === 0 ? (
-        <EmptyState message="No always-tracked players. Admins can add tag and name above." />
+        <EmptyState message="No July roster players yet. Admins can add tag and name above." />
       ) : (
         <Table.Root variant="surface">
           <Table.Header>
@@ -166,9 +166,9 @@ export function TrackedPlayers() {
                         </IconButton>
                       </Dialog.Trigger>
                       <Dialog.Content maxWidth="400px">
-                        <Dialog.Title>Remove always-track</Dialog.Title>
+                        <Dialog.Title>Remove from July roster</Dialog.Title>
                         <Dialog.Description>
-                          {`Stop always-tracking ${r.display_name?.trim() || r.player_tag} (${r.player_tag})? They will only update again if in a tracked clan.`}
+                          {`Remove ${r.display_name?.trim() || r.player_tag} (${r.player_tag}) from the July list? They will only update again if they are in a tracked clan.`}
                         </Dialog.Description>
                         <Flex gap="3" mt="4" justify="end">
                           <Dialog.Close>

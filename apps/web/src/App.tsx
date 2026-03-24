@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AdminProvider } from "./lib/AdminContext";
 import { Layout } from "./components/Layout";
 import { Dashboard } from "./pages/Dashboard";
@@ -27,7 +27,8 @@ export default function App() {
             <Route path="/raids/:id" element={<RaidDetail />} />
             <Route path="/legends" element={<Legends />} />
             <Route path="/tracked-clans" element={<TrackedClans />} />
-            <Route path="/tracked-players" element={<TrackedPlayers />} />
+            <Route path="/july-players" element={<TrackedPlayers />} />
+            <Route path="/tracked-players" element={<Navigate to="/july-players" replace />} />
           </Route>
         </Routes>
       </HashRouter>
