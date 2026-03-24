@@ -11,8 +11,11 @@ import {
   LockClosedIcon,
   LockOpen1Icon,
   StarFilledIcon,
+  MoonIcon,
+  SunIcon,
 } from "@radix-ui/react-icons";
 import { useAdmin } from "../lib/AdminContext";
+import { useThemePreference } from "../lib/ThemePreferenceContext";
 import { api } from "../lib/api";
 
 const NAV_ITEMS = [
@@ -24,6 +27,23 @@ const NAV_ITEMS = [
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
   { to: "/tracked-players", label: "Tracked Players", icon: BookmarkIcon },
 ];
+
+function ThemeToggle() {
+  const { appearance, toggleAppearance } = useThemePreference();
+  const isDark = appearance === "dark";
+  return (
+    <IconButton
+      variant="ghost"
+      color="gray"
+      size="1"
+      onClick={toggleAppearance}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
+      aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+    >
+      {isDark ? <SunIcon width={16} height={16} /> : <MoonIcon width={16} height={16} />}
+    </IconButton>
+  );
+}
 
 function AdminToggle() {
   const { isAdmin, setAdminKey, clearAdmin } = useAdmin();
@@ -140,7 +160,10 @@ export function Layout() {
             })}
           </Flex>
           <Box className="border-t border-[var(--gray-5)]" py="2" px="1">
-            <AdminToggle />
+            <Flex align="center" justify="between" gap="2" wrap="wrap" px="2">
+              <ThemeToggle />
+              <AdminToggle />
+            </Flex>
           </Box>
         </nav>
       </Box>

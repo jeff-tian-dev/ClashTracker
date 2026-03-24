@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Clash Tracker</title>
+    <script>
+      (function () {
+        try {
+          var k = "clash-tracker-appearance";
+          document.documentElement.style.colorScheme =
+            localStorage.getItem(k) === "light" ? "light" : "dark";
+        } catch (e) {
+          document.documentElement.style.colorScheme = "dark";
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
