@@ -154,7 +154,7 @@ export function TrackedPlayers() {
                 <Table.Cell>
                   <Text weight="medium">{r.player_tag}</Text>
                 </Table.Cell>
-                <Table.Cell>{r.name?.trim() ? r.name : "—"}</Table.Cell>
+                <Table.Cell>{r.display_name?.trim() ? r.display_name : "—"}</Table.Cell>
                 <Table.Cell>{r.note || "—"}</Table.Cell>
                 <Table.Cell>{new Date(r.added_at).toLocaleDateString()}</Table.Cell>
                 {isAdmin && (
@@ -168,8 +168,7 @@ export function TrackedPlayers() {
                       <Dialog.Content maxWidth="400px">
                         <Dialog.Title>Remove always-track</Dialog.Title>
                         <Dialog.Description>
-                          Stop always-tracking {r.name?.trim() || r.player_tag} ({r.player_tag})? They will
-                          only update again if in a tracked clan.
+                          {`Stop always-tracking ${r.display_name?.trim() || r.player_tag} (${r.player_tag})? They will only update again if in a tracked clan.`}
                         </Dialog.Description>
                         <Flex gap="3" mt="4" justify="end">
                           <Dialog.Close>

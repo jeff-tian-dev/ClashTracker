@@ -42,8 +42,37 @@ def test_add_tracked_player_normalizes_tag(client, monkeypatch):
     assert r.status_code == 201
     assert mock.inserted is not None
     assert mock.inserted["player_tag"] == "#XYZ99"
-    assert mock.inserted["name"] == "Scout One"
+    assert mock.inserted["display_name"] == "Scout One"
     assert mock.inserted["note"] == "scout"
+
+
+def test_add_tracked_player_accepts_legacy_name_json_key(client, monkeypatch):
+    class _InsertMock:
+        def __init__(self):
+            self.inserted: dict | None = None
+
+        def table(self, _name):
+            return self
+
+        def insert(self, row):
+            self.inserted = row
+            return self
+
+        def execute(self):
+            row = self.inserted or {}
+            return type("R", (), {"data": [row]})()
+
+    mock = _InsertMock()
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: mock)
+
+    r = client.post(
+        "/api/tracked-players",
+        headers=AUTH_HEADER,
+        json={"player_tag": "#LEG", "name": "Legacy Key", "note": None},
+    )
+    assert r.status_code == 201
+    assert mock.inserted is not None
+    assert mock.inserted["display_name"] == "Legacy Key"
 
 
 def test_remove_tracked_player_success(client, monkeypatch):
