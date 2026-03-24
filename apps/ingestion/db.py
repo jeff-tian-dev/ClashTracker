@@ -31,6 +31,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# CoC API role strings -> dashboard labels (stored in players.role).
+_PLAYER_ROLE_DISPLAY: dict[str, str] = {
+    "member": "Member",
+    "admin": "Elder",
+    "elder": "Elder",
+    "coLeader": "Co-leader",
+    "leader": "Leader",
+}
+
+
+def normalize_player_role(role: str | None) -> str | None:
+    if not role:
+        return None
+    return _PLAYER_ROLE_DISPLAY.get(role, role)
+
+
 def get_tracked_clans() -> list[dict]:
     resp = get_db().table("tracked_clans").select("*").execute()
     data = resp.data
@@ -154,7 +170,7 @@ def upsert_player(player_data: dict) -> None:
         "war_stars": player_data.get("warStars", 0),
         "attack_wins": player_data.get("attackWins", 0),
         "defense_wins": player_data.get("defenseWins", 0),
-        "role": player_data.get("role"),
+        "role": normalize_player_role(player_data.get("role")),
         "war_preference": player_data.get("warPreference"),
         "clan_capital_contributions": player_data.get("clanCapitalContributions", 0),
         "league_name": league_name,
