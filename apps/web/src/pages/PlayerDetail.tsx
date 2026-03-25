@@ -65,23 +65,32 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
         </Text>
       ) : (
         <div
-          className="flex items-end gap-0.5 sm:gap-1 w-full h-40 pt-2 border-t border-[var(--gray-6)]"
+          className="flex items-stretch gap-0.5 sm:gap-1 w-full h-40 pt-2 border-t border-[var(--gray-6)]"
           role="img"
           aria-label={`Attacks by local hour, last 7 days. Total ${total}.`}
         >
-          {counts.map((c, hour) => (
+          {counts.map((c, hour) => {
+            const label = `${hour.toString().padStart(2, "0")}:00–${hour.toString().padStart(2, "0")}:59`;
+            const tip = `${label}: ${c} ${c === 1 ? "attack" : "attacks"}`;
+            return (
             <div
               key={hour}
-              className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1"
-              title={`${hour.toString().padStart(2, "0")}:00–${hour.toString().padStart(2, "0")}:59 — ${c} attack(s)`}
+              className="flex-1 min-w-0 flex flex-col items-center justify-end gap-1 min-h-0"
+              title={tip}
             >
               <div
-                className="w-full max-w-[14px] mx-auto rounded-sm bg-[var(--accent-9)] opacity-90 hover:opacity-100 transition-opacity"
-                style={{
-                  height: `${Math.max((c / max) * 100, c > 0 ? 8 : 0)}%`,
-                  minHeight: c > 0 ? "4px" : undefined,
-                }}
-              />
+                className="flex-1 w-full min-h-0 flex flex-col justify-end items-center"
+                title={tip}
+              >
+                <div
+                  className="w-full max-w-[14px] mx-auto rounded-sm bg-[var(--accent-9)] opacity-90 hover:opacity-100 transition-opacity"
+                  style={{
+                    height: `${Math.max((c / max) * 100, c > 0 ? 8 : 0)}%`,
+                    minHeight: c > 0 ? "4px" : undefined,
+                  }}
+                  title={tip}
+                />
+              </div>
               <Text
                 size="1"
                 color="gray"
@@ -90,7 +99,8 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
                 {hour.toString().padStart(2, "0")}
               </Text>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Flex>
