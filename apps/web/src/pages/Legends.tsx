@@ -10,7 +10,10 @@ import {
   Select,
   Callout,
   Switch,
+  IconButton,
+  Button,
 } from "@radix-ui/themes";
+import { TrashIcon } from "@radix-ui/react-icons";
 import {
   api,
   LegendsLeaderboardEntry,
@@ -20,7 +23,8 @@ import {
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { TableScrollArea } from "../components/TableScrollArea";
-import { DIALOG_CONTENT_LG } from "../lib/dialogClasses";
+import { DIALOG_CONTENT_LG, DIALOG_CONTENT_SM } from "../lib/dialogClasses";
+import { useAdmin } from "../lib/AdminContext";
 
 /** Dedup archive days — not shown in the modal date picker (matches API filter). */
 const HIDDEN_LEGENDS_DAYS = new Set(["2026-03-22"]);
@@ -127,6 +131,7 @@ function BattleTable({ battles, type }: { battles: LegendsBattle[]; type: "attac
 }
 
 export function Legends() {
+  const { isAdmin, adminKey } = useAdmin();
   const [entries, setEntries] = useState<LegendsLeaderboardEntry[]>([]);
   const [legendsDay, setLegendsDay] = useState("");
   const [loading, setLoading] = useState(true);
@@ -200,6 +205,22 @@ export function Legends() {
       .finally(() => setDetailLoading(false));
   }
 
+  async function handleDeletePlayer(tag: string) {
+    if (!adminKey) return;
+    try {
+      await api.deletePlayer(tag, adminKey);
+      setEntries((prev) => prev.filter((e) => e.player_tag !== tag));
+      if (selectedTag === tag) {
+        setSelectedTag(null);
+        setDetail(null);
+        setAvailableLegendsDays([]);
+        setModalSelectedDay("");
+      }
+    } catch (err) {
+      console.error("Failed to delete player", err);
+    }
+  }
+
   return (
     <Box>
       <Flex align="center" justify="between" gap="4" wrap="wrap" mb="4">
@@ -241,7 +262,7 @@ export function Legends() {
         <EmptyState message="No players in Legends League in the roster yet." />
       ) : (
         <TableScrollArea>
-          <Table.Root variant="surface" className="min-w-[640px]">
+          <Table.Root variant="surface" className="min-w-[700px]">
             <Table.Header>
               <Table.Row>
                 <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
@@ -251,6 +272,7 @@ export function Legends() {
                 <Table.ColumnHeaderCell>Net</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Initial</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Final</Table.ColumnHeaderCell>
+                {isAdmin && <Table.ColumnHeaderCell />}
               </Table.Row>
             </Table.Header>
             <Table.Body>
@@ -317,6 +339,53 @@ export function Legends() {
                 <Table.Cell>
                   <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
                 </Table.Cell>
+                {isAdmin && (
+                  <Table.Cell
+                    onClick={(ev) => ev.stopPropagation()}
+                    onKeyDown={(ev) => ev.stopPropagation()}
+                  >
+                    <Dialog.Root>
+                      <Dialog.Trigger>
+                        <IconButton
+                          type="button"
+                          variant="ghost"
+                          color="red"
+                          size={{ initial: "2", md: "1" }}
+                          aria-label="Delete player"
+                          onClick={(ev) => ev.stopPropagation()}
+                        >
+                          <TrashIcon />
+                        </IconButton>
+                      </Dialog.Trigger>
+                      <Dialog.Content className={DIALOG_CONTENT_SM}>
+                        <Dialog.Title>Delete player</Dialog.Title>
+                        <Dialog.Description>
+                          Remove {e.name} ({e.player_tag}) from the dashboard? This deletes their row
+                          and any Tracked Players pin, same as on the Players tab. They can show up
+                          again after sync if they are still in a tracked clan.
+                        </Dialog.Description>
+                        <Flex
+                          gap="3"
+                          mt="4"
+                          justify="end"
+                          direction={{ initial: "column", sm: "row" }}
+                          wrap="wrap"
+                        >
+                          <Dialog.Close>
+                            <Button variant="soft" color="gray">
+                              Cancel
+                            </Button>
+                          </Dialog.Close>
+                          <Dialog.Close>
+                            <Button color="red" onClick={() => handleDeletePlayer(e.player_tag)}>
+                              Delete
+                            </Button>
+                          </Dialog.Close>
+                        </Flex>
+                      </Dialog.Content>
+                    </Dialog.Root>
+                  </Table.Cell>
+                )}
               </Table.Row>
             );
             })}
