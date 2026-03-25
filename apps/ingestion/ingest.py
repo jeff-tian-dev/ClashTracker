@@ -11,6 +11,7 @@ from shared.logutil import (
 from . import supercell_client as coc
 from . import db
 from . import legends
+from . import player_activity
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def _run_once_inner() -> None:
         db.reconcile_tracked_roster(active_tags)
 
         legends.ingest_legends(client)
+        player_activity.ingest_player_activity(client, active_tags)
     finally:
         client.close()
 

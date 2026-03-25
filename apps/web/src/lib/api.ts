@@ -35,6 +35,8 @@ export const api = {
     return request<PaginatedResponse<Player>>(`/api/players${qs}`);
   },
   player: (tag: string) => request<Player>(`/api/players/${encodeURIComponent(tag)}`),
+  playerActivity: (tag: string) =>
+    request<PlayerActivityResponse>(`/api/players/${encodeURIComponent(tag)}/activity`),
 
   wars: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -103,6 +105,10 @@ export interface DashboardData {
   total_raids: number;
   recent_wars: War[];
   recent_raids: Raid[];
+}
+
+export interface PlayerActivityResponse {
+  attacks: { attacked_at: string }[];
 }
 
 export interface Player {

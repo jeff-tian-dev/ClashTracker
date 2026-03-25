@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from postgrest.exceptions import APIError
@@ -59,6 +60,32 @@ def list_players(
         "page": page,
         "page_size": page_size,
     }
+
+
+@router.get("/players/{tag:path}/activity")
+def get_player_activity(tag: str):
+    """Attack timestamps (UTC) from battle logs for the last 7 days (for local-timezone charts)."""
+    db = get_db()
+    logger.debug(
+        "get player activity",
+        extra={"event": "api.db.query", "table": "player_attack_events", "player_tag": tag},
+    )
+    try:
+        db.table("players").select("tag").eq("tag", tag).single().execute()
+    except APIError as exc:
+        raise http_exception_for_single_lookup(exc, resource="player", identifier=tag) from exc
+
+    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    resp = (
+        db.table("player_attack_events")
+        .select("attacked_at")
+        .eq("player_tag", tag)
+        .gte("attacked_at", since)
+        .order("attacked_at", desc=False)
+        .execute()
+    )
+    rows = resp.data or []
+    return {"attacks": [{"attacked_at": r["attacked_at"]} for r in rows]}
 
 
 @router.get("/players/{tag:path}")

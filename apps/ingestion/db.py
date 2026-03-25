@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from supabase import create_client, Client
 from shared.legends_roster import fetch_legends_roster_tags
@@ -181,6 +181,11 @@ def upsert_player(player_data: dict) -> None:
         "Upserted player",
         extra={"event": "ingestion.db.upsert", "table": "players", "tag": row["tag"]},
     )
+
+
+def parse_coc_timestamp(ts: str | None) -> str | None:
+    """Parse CoC API time strings (e.g. battle or war times) into ISO-8601 UTC."""
+    return _parse_coc_time(ts)
 
 
 def _parse_coc_time(ts: str | None) -> str | None:
@@ -437,3 +442,44 @@ def upsert_raid_members(raid_id: int, members: list[dict]) -> None:
     if rows:
         get_db().table("raid_members").upsert(rows, on_conflict="raid_id,player_tag").execute()
         logger.info("Upserted %d raid members for raid id=%d", len(rows), raid_id)
+
+
+def get_battlelog_cursor(player_tag: str) -> dict | None:
+    resp = (
+        get_db()
+        .table("player_battlelog_cursor")
+        .select("player_tag, cursor_snapshot, updated_at")
+        .eq("player_tag", player_tag)
+        .limit(1)
+        .execute()
+    )
+    rows = resp.data or []
+    return rows[0] if rows else None
+
+
+def upsert_battlelog_cursor(player_tag: str, cursor_snapshot: dict) -> None:
+    row = {
+        "player_tag": player_tag,
+        "cursor_snapshot": cursor_snapshot,
+        "updated_at": _now_iso(),
+    }
+    get_db().table("player_battlelog_cursor").upsert(row, on_conflict="player_tag").execute()
+
+
+def insert_player_attack_events_batch(rows: list[dict]) -> None:
+    if not rows:
+        return
+    get_db().table("player_attack_events").upsert(
+        rows,
+        on_conflict="player_tag,attacked_at,opponent_tag",
+    ).execute()
+    logger.info(
+        "Upserted %d player attack event(s)",
+        len(rows),
+        extra={"event": "ingestion.db.upsert", "table": "player_attack_events", "count": len(rows)},
+    )
+
+
+def prune_player_attack_events_older_than_days(days: int = 14) -> None:
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    get_db().table("player_attack_events").delete().lt("attacked_at", cutoff).execute()
