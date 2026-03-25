@@ -24,19 +24,39 @@ function bucketAttacksByLocalHour(attacks: { attacked_at: string }[]): number[] 
   return counts;
 }
 
+/** Days from earliest stored attack to now (client clock). API returns up to 7 days of rows. */
+function formatAttackHistorySpanDays(attacks: { attacked_at: string }[]): string | null {
+  if (attacks.length === 0) return null;
+  const first = Math.min(...attacks.map((a) => new Date(a.attacked_at).getTime()));
+  const days = (Date.now() - first) / 86_400_000;
+  if (!Number.isFinite(days) || days < 0) return null;
+  if (days < 0.1) return "<0.1";
+  if (days < 10) return days.toFixed(1);
+  return days.toFixed(0);
+}
+
 function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) {
   const counts = bucketAttacksByLocalHour(attacks);
   const max = Math.max(...counts, 1);
   const total = counts.reduce((a, b) => a + b, 0);
+  const spanDays = formatAttackHistorySpanDays(attacks);
 
   return (
     <Flex direction="column" gap="3">
       <div>
-        <Text size="3" weight="bold" as="div">
-          Attack activity (last 7 days)
-        </Text>
+        <Flex align="baseline" gap="2" wrap="wrap" mb="1">
+          <Text size="3" weight="bold" as="span">
+            Attack activity (last 7 days)
+          </Text>
+          <Text size="1" color="gray" as="span" className="italic shrink-0">
+            {spanDays != null
+              ? `(${spanDays} days of data)`
+              : "(no attacks logged yet in this window)"}
+          </Text>
+        </Flex>
         <Text size="2" color="gray" as="div">
-          By hour of day in your local timezone. Each bar is attacks between that hour and :59.
+          By hour of day in your local timezone. Each bar is attacks between that hour and :59. The chart can use up to 7 days;
+          recently tracked players often have fewer days of history—sparse bars do not mean inactive.
         </Text>
       </div>
       {total === 0 ? (
