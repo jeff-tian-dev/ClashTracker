@@ -274,8 +274,12 @@ export function TrackedPlayers() {
       api.trackedPlayers({ tracking_group: "external" }),
     ])
       .then(([clan, ext]) => {
-        setClanRows(clan.data);
-        setExternalRows(ext.data);
+        // Server should filter by query; also filter here so stale APIs that ignore
+        // `tracking_group` cannot show the same rows in both sections.
+        setClanRows(
+          clan.data.filter((r) => (r.tracking_group ?? "clan_july") === "clan_july"),
+        );
+        setExternalRows(ext.data.filter((r) => r.tracking_group === "external"));
       })
       .finally(() => setLoading(false));
   }, []);
