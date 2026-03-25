@@ -125,6 +125,14 @@ def reconcile_tracked_roster(active_tags: set[str]) -> None:
         )
 
 
+def clan_row_exists(tag: str) -> bool:
+    """True if `clans` has a row for this tag (for players.clan_tag FK)."""
+    if not tag:
+        return False
+    resp = get_db().table("clans").select("tag").eq("tag", tag).limit(1).execute()
+    return bool(resp.data)
+
+
 def upsert_clan(clan_data: dict) -> None:
     badge = clan_data.get("badgeUrls", {})
     row = {
@@ -155,6 +163,16 @@ def upsert_clan(clan_data: dict) -> None:
 
 def upsert_player(player_data: dict) -> None:
     clan = player_data.get("clan")
+    if isinstance(clan, dict):
+        ctag = (clan.get("tag") or "").strip()
+        if ctag and not clan_row_exists(ctag):
+            # Player payload embeds PlayerClan (tag, name, badgeUrls, clanLevel); enough for upsert_clan defaults.
+            upsert_clan(clan)
+            logger.info(
+                "Ensured clan row from player.clan (stub; not yet ingested via tracked clans)",
+                extra={"event": "ingestion.db.clan_stub", "clan_tag": ctag, "player_tag": player_data.get("tag")},
+            )
+
     league_tier = player_data.get("leagueTier") or {}
     league_obj = player_data.get("league") or {}
     # Prefer leagueTier.name (granular tier); fall back to league.name if tier omitted.
