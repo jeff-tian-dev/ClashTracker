@@ -5,6 +5,7 @@ from shared.logutil import get_ingestion_run_id, log_event
 
 from . import supercell_client as coc
 from . import db
+from .player_activity import _canonical_snapshot, _is_attack, _snapshots_equal
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,6 @@ def ingest_legends(client) -> None:
     )
 
 
-_LOOKBACK_DAYS = 3
 # Legends League allows at most 8 attacks and 8 defenses per legends day.
 _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY = 8
 
@@ -98,26 +98,46 @@ def _ingest_player_legends(
     if not legend_battles:
         return
 
-    since_day = (current_legends_day() - timedelta(days=_LOOKBACK_DAYS)).isoformat()
-    seen_keys = db.get_recent_legends_keys(player_tag, since_day)
+    newest_legend = legend_battles[-1]
+    cursor_row = db.get_legends_battlelog_cursor(player_tag)
 
-    # Battles not yet in DB (any day in lookback), in API order (oldest → newest).
-    new_attack_battles: list[dict] = []
-    new_defense_battles: list[dict] = []
-    for battle in legend_battles:
-        is_attack = battle.get("attack", True)
-        stars = battle.get("stars", 0)
-        destruction_pct = battle.get("destructionPercentage", 0)
-        opponent_tag = battle.get("opponentPlayerTag", "")
+    if cursor_row is None:
+        db.upsert_legends_battlelog_cursor(player_tag, _canonical_snapshot(newest_legend))
+        log_event(
+            logger,
+            "ingestion.legends.baseline",
+            f"Legends battle log cursor for {player_tag} (no backfill)",
+            player_tag=player_tag,
+            ingestion_run_id=get_ingestion_run_id(),
+        )
+        return
 
-        dedup_key = (opponent_tag, is_attack, stars, destruction_pct)
-        if dedup_key in seen_keys:
-            continue
+    stored = cursor_row["cursor_snapshot"]
+    if not isinstance(stored, dict):
+        stored = dict(stored)
 
-        if is_attack:
-            new_attack_battles.append(battle)
-        else:
-            new_defense_battles.append(battle)
+    new_battles: list[dict] = []
+    found_cursor = False
+    for b in reversed(legend_battles):
+        if _snapshots_equal(stored, b):
+            found_cursor = True
+            break
+        new_battles.append(b)
+
+    if not found_cursor:
+        log_event(
+            logger,
+            "ingestion.legends.cursor_miss",
+            f"Legends battle log cursor missing from API window for {player_tag}; resetting without backfill",
+            player_tag=player_tag,
+            ingestion_run_id=get_ingestion_run_id(),
+        )
+        db.upsert_legends_battlelog_cursor(player_tag, _canonical_snapshot(newest_legend))
+        return
+
+    # new_battles: newest-first (same order as reversed walk before break).
+    new_attacks = [b for b in new_battles if _is_attack(b)]
+    new_defenses = [b for b in new_battles if not _is_attack(b)]
 
     db_attack_count, db_defense_count = db.get_legends_day_attack_defense_counts(
         player_tag, legends_day_str
@@ -125,19 +145,17 @@ def _ingest_player_legends(
     attack_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_attack_count)
     defense_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_defense_count)
 
-    # Prefer the newest battles (tail of API list) up to remaining slots. This avoids
-    # stuffing prior-season rows when the log is a rolling window without timestamps.
-    take_attacks = min(len(new_attack_battles), attack_slots)
-    take_defenses = min(len(new_defense_battles), defense_slots)
-    selected_attacks = new_attack_battles[-take_attacks:] if take_attacks else []
-    selected_defenses = new_defense_battles[-take_defenses:] if take_defenses else []
+    take_attacks = min(len(new_attacks), attack_slots)
+    take_defenses = min(len(new_defenses), defense_slots)
+    selected_attacks = new_attacks[:take_attacks] if take_attacks else []
+    selected_defenses = new_defenses[:take_defenses] if take_defenses else []
 
     rows_to_upsert: list[dict] = []
     for battle in selected_attacks + selected_defenses:
-        is_attack = battle.get("attack", True)
-        stars = battle.get("stars", 0)
-        destruction_pct = battle.get("destructionPercentage", 0)
-        opponent_tag = battle.get("opponentPlayerTag", "")
+        is_attack = _is_attack(battle)
+        stars = int(battle.get("stars", 0))
+        destruction_pct = int(battle.get("destructionPercentage", 0))
+        opponent_tag = battle.get("opponentPlayerTag") or ""
 
         trophies = calculate_trophies(stars, destruction_pct)
         opponent_name = _resolve_opponent_name(client, opponent_tag)
@@ -153,7 +171,6 @@ def _ingest_player_legends(
             "legends_day": legends_day_str,
             "first_seen_at": now_iso,
         })
-        seen_keys.add((opponent_tag, is_attack, stars, destruction_pct))
 
     if rows_to_upsert:
         db.upsert_legends_battles_batch(rows_to_upsert)
@@ -165,6 +182,8 @@ def _ingest_player_legends(
             new_battles=len(rows_to_upsert),
             ingestion_run_id=get_ingestion_run_id(),
         )
+
+    db.upsert_legends_battlelog_cursor(player_tag, _canonical_snapshot(newest_legend))
 
 
 _opponent_cache: dict[str, str | None] = {}

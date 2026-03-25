@@ -352,22 +352,6 @@ def get_legends_player_tags() -> list[str]:
     return fetch_legends_roster_tags(get_db())
 
 
-def get_existing_legends_keys(player_tag: str, legends_day: str) -> set[tuple]:
-    """Return dedup keys already stored for a player on the given legends day."""
-    resp = (
-        get_db()
-        .table("legends_battles")
-        .select("opponent_tag, is_attack, stars, destruction_pct")
-        .eq("player_tag", player_tag)
-        .eq("legends_day", legends_day)
-        .execute()
-    )
-    return {
-        (r["opponent_tag"], r["is_attack"], r["stars"], r["destruction_pct"])
-        for r in (resp.data or [])
-    }
-
-
 def get_legends_day_attack_defense_counts(player_tag: str, legends_day: str) -> tuple[int, int]:
     """Return (attack_count, defense_count) for this player on the given legends day."""
     resp = (
@@ -384,25 +368,26 @@ def get_legends_day_attack_defense_counts(player_tag: str, legends_day: str) -> 
     return attacks, defenses
 
 
-def get_recent_legends_keys(player_tag: str, since_day: str) -> set[tuple]:
-    """Return dedup keys for a player across all days >= since_day.
-
-    Used to avoid re-adding old battles from the API response under
-    the current day (the battle log has no timestamps, so old battles
-    still appear in the response).
-    """
+def get_legends_battlelog_cursor(player_tag: str) -> dict | None:
     resp = (
         get_db()
-        .table("legends_battles")
-        .select("opponent_tag, is_attack, stars, destruction_pct")
+        .table("legends_battlelog_cursor")
+        .select("player_tag, cursor_snapshot, updated_at")
         .eq("player_tag", player_tag)
-        .gte("legends_day", since_day)
+        .limit(1)
         .execute()
     )
-    return {
-        (r["opponent_tag"], r["is_attack"], r["stars"], r["destruction_pct"])
-        for r in (resp.data or [])
+    rows = resp.data or []
+    return rows[0] if rows else None
+
+
+def upsert_legends_battlelog_cursor(player_tag: str, cursor_snapshot: dict) -> None:
+    row = {
+        "player_tag": player_tag,
+        "cursor_snapshot": cursor_snapshot,
+        "updated_at": _now_iso(),
     }
+    get_db().table("legends_battlelog_cursor").upsert(row, on_conflict="player_tag").execute()
 
 
 def upsert_legends_battle(row: dict) -> None:
