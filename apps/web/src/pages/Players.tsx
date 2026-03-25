@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, forwardRef } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton, Badge, Text } from "@radix-ui/themes";
-import { MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
+import { BookmarkIcon, MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
 import { api, Player } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
@@ -10,6 +11,27 @@ import { Pagination } from "../components/Pagination";
 import { TableScrollArea } from "../components/TableScrollArea";
 import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 import { formatLeftAgo } from "../lib/formatRelativeLeft";
+
+/** Radix Icons has no shield; matches 15×15 filled icon style (e.g. TrashIcon). */
+const ShieldIcon = forwardRef<SVGSVGElement, ComponentPropsWithoutRef<"svg">>((props, ref) => (
+  <svg
+    width="15"
+    height="15"
+    viewBox="0 0 15 15"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    ref={ref}
+    {...props}
+  >
+    <path
+      fill="currentColor"
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M7.5 1L11.75 3.25V7.5C11.75 10.1 9.85 12.35 7.5 13C5.15 12.35 3.25 10.1 3.25 7.5V3.25L7.5 1Z"
+    />
+  </svg>
+));
+ShieldIcon.displayName = "ShieldIcon";
 
 export function Players() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -21,6 +43,7 @@ export function Players() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState(search);
+  const [pendingTrackTag, setPendingTrackTag] = useState<string | null>(null);
 
   async function handleDelete(tag: string) {
     try {
@@ -29,6 +52,32 @@ export function Players() {
       setTotal((t) => t - 1);
     } catch (err) {
       console.error("Failed to delete player", err);
+    }
+  }
+
+  async function handleAddTracked(p: Player, tracking_group: "clan_july" | "external") {
+    if (!adminKey) return;
+    setPendingTrackTag(p.tag);
+    try {
+      await api.addTrackedPlayer(p.tag, adminKey, {
+        tracking_group,
+        display_name: p.name,
+      });
+      setPlayers((prev) =>
+        prev.map((row) =>
+          row.tag === p.tag ? { ...row, is_always_tracked: true, tracking_group } : row,
+        ),
+      );
+    } catch (err) {
+      console.error("Failed to add tracked player", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("409")) {
+        window.alert("This player is already on a tracked list. Remove them there first to change group.");
+      } else {
+        window.alert("Failed to add player to tracked list.");
+      }
+    } finally {
+      setPendingTrackTag(null);
     }
   }
 
@@ -137,33 +186,59 @@ export function Players() {
                   </Table.Cell>
                   {isAdmin && (
                     <Table.Cell>
-                      <Dialog.Root>
-                        <Dialog.Trigger>
-                          <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
-                            <TrashIcon />
-                          </IconButton>
-                        </Dialog.Trigger>
-                        <Dialog.Content className={DIALOG_CONTENT_SM}>
-                          <Dialog.Title>Delete Player</Dialog.Title>
-                          <Dialog.Description>
-                            Remove {p.name} ({p.tag}) from the dashboard? This deletes their data from the database.
-                          </Dialog.Description>
-                          <Flex
-                            gap="3"
-                            mt="4"
-                            justify="end"
-                            direction={{ initial: "column", sm: "row" }}
-                            wrap="wrap"
-                          >
-                            <Dialog.Close>
-                              <Button variant="soft" color="gray">Cancel</Button>
-                            </Dialog.Close>
-                            <Dialog.Close>
-                              <Button color="red" onClick={() => handleDelete(p.tag)}>Delete</Button>
-                            </Dialog.Close>
-                          </Flex>
-                        </Dialog.Content>
-                      </Dialog.Root>
+                      <Flex gap="1" align="center" wrap="nowrap">
+                        <IconButton
+                          type="button"
+                          variant="ghost"
+                          color="gray"
+                          size={{ initial: "2", md: "1" }}
+                          disabled={Boolean(p.is_always_tracked) || pendingTrackTag === p.tag}
+                          aria-label="Add to Clan (July) tracked list"
+                          title="Add to Clan (July) tracked list"
+                          onClick={() => handleAddTracked(p, "clan_july")}
+                        >
+                          <ShieldIcon />
+                        </IconButton>
+                        <IconButton
+                          type="button"
+                          variant="ghost"
+                          color="gray"
+                          size={{ initial: "2", md: "1" }}
+                          disabled={Boolean(p.is_always_tracked) || pendingTrackTag === p.tag}
+                          aria-label="Add to external tracked list"
+                          title="Add to external tracked list"
+                          onClick={() => handleAddTracked(p, "external")}
+                        >
+                          <BookmarkIcon />
+                        </IconButton>
+                        <Dialog.Root>
+                          <Dialog.Trigger>
+                            <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
+                              <TrashIcon />
+                            </IconButton>
+                          </Dialog.Trigger>
+                          <Dialog.Content className={DIALOG_CONTENT_SM}>
+                            <Dialog.Title>Delete Player</Dialog.Title>
+                            <Dialog.Description>
+                              Remove {p.name} ({p.tag}) from the dashboard? This deletes their data from the database.
+                            </Dialog.Description>
+                            <Flex
+                              gap="3"
+                              mt="4"
+                              justify="end"
+                              direction={{ initial: "column", sm: "row" }}
+                              wrap="wrap"
+                            >
+                              <Dialog.Close>
+                                <Button variant="soft" color="gray">Cancel</Button>
+                              </Dialog.Close>
+                              <Dialog.Close>
+                                <Button color="red" onClick={() => handleDelete(p.tag)}>Delete</Button>
+                              </Dialog.Close>
+                            </Flex>
+                          </Dialog.Content>
+                        </Dialog.Root>
+                      </Flex>
                     </Table.Cell>
                   )}
                 </Table.Row>
