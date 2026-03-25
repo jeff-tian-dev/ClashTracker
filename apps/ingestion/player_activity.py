@@ -1,6 +1,11 @@
-"""Ingest multiplayer battle log attack timestamps for hourly activity charts."""
+"""Ingest multiplayer battle log attack timestamps for hourly activity charts.
+
+CoC OpenAPI `BattleLogEntry` (see coc-api-docs.json) does not include battleTime; we record
+UTC timestamps at observation time (each ingestion run, ~10 minutes).
+"""
 
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 from shared.logutil import get_ingestion_run_id, log_event
@@ -81,23 +86,16 @@ def _ingest_one_player(client, player_tag: str) -> None:
         db.upsert_battlelog_cursor(player_tag, _canonical_snapshot(newest))
         return
 
+    # Official BattleLogEntry (coc-api-docs.json) has no battleTime; stamp when we observe
+    # the row (10-minute poll). Microsecond stagger avoids UNIQUE collisions in one batch.
+    observed_at = datetime.now(timezone.utc)
     rows: list[dict] = []
+    offset = 0
     for b in new_battles:
         if not _is_attack(b):
             continue
-        raw_time = b.get("battleTime")
-        attacked_at = db.parse_coc_timestamp(raw_time) if raw_time else None
-        if not attacked_at:
-            logger.warning(
-                "Battle log entry missing or invalid battleTime; skipping",
-                extra={
-                    "event": "ingestion.player_activity.skip_time",
-                    "player_tag": player_tag,
-                    "battleTime": raw_time,
-                    "ingestion_run_id": get_ingestion_run_id(),
-                },
-            )
-            continue
+        attacked_at = (observed_at + timedelta(microseconds=offset)).isoformat()
+        offset += 1
         rows.append(
             {
                 "player_tag": player_tag,
