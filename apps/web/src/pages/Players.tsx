@@ -7,6 +7,8 @@ import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
+import { TableScrollArea } from "../components/TableScrollArea";
+import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 import { formatLeftAgo } from "../lib/formatRelativeLeft";
 
 export function Players() {
@@ -72,24 +74,25 @@ export function Players() {
         <EmptyState message="No players found." />
       ) : (
         <>
-          <Table.Root variant="surface">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>TH</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Trophies</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>War Stars</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Role</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>League</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
-                {isAdmin && <Table.ColumnHeaderCell />}
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {players.map((p) => {
-                const leftAt = p.left_tracked_roster_at;
-                const isLeft = Boolean(leftAt);
-                return (
+          <TableScrollArea>
+            <Table.Root variant="surface" className="min-w-[720px]">
+              <Table.Header>
+                <Table.Row>
+                  <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>TH</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Trophies</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>War Stars</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Role</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>League</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>Status</Table.ColumnHeaderCell>
+                  {isAdmin && <Table.ColumnHeaderCell />}
+                </Table.Row>
+              </Table.Header>
+              <Table.Body>
+                {players.map((p) => {
+                  const leftAt = p.left_tracked_roster_at;
+                  const isLeft = Boolean(leftAt);
+                  return (
                 <Table.Row key={p.tag} className={isLeft ? "opacity-60" : undefined}>
                   <Table.Cell>
                     <Flex direction="column" gap="1" align="start">
@@ -131,16 +134,22 @@ export function Players() {
                     <Table.Cell>
                       <Dialog.Root>
                         <Dialog.Trigger>
-                          <IconButton variant="ghost" color="red" size="1">
+                          <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
                             <TrashIcon />
                           </IconButton>
                         </Dialog.Trigger>
-                        <Dialog.Content maxWidth="400px">
+                        <Dialog.Content className={DIALOG_CONTENT_SM}>
                           <Dialog.Title>Delete Player</Dialog.Title>
                           <Dialog.Description>
                             Remove {p.name} ({p.tag}) from the dashboard? This deletes their data from the database.
                           </Dialog.Description>
-                          <Flex gap="3" mt="4" justify="end">
+                          <Flex
+                            gap="3"
+                            mt="4"
+                            justify="end"
+                            direction={{ initial: "column", sm: "row" }}
+                            wrap="wrap"
+                          >
                             <Dialog.Close>
                               <Button variant="soft" color="gray">Cancel</Button>
                             </Dialog.Close>
@@ -153,10 +162,11 @@ export function Players() {
                     </Table.Cell>
                   )}
                 </Table.Row>
-              );
-              })}
-            </Table.Body>
-          </Table.Root>
+                  );
+                })}
+              </Table.Body>
+            </Table.Root>
+          </TableScrollArea>
           <Pagination
             page={page}
             pageSize={20}

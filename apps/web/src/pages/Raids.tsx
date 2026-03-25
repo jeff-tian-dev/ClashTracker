@@ -7,6 +7,7 @@ import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
+import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 
 export function Raids() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -84,18 +85,24 @@ export function Raids() {
                       <IconButton
                         variant="soft"
                         color="red"
-                        size="1"
-                        className="!absolute top-2 right-2 z-10"
+                        size={{ initial: "2", md: "1" }}
+                        className="!absolute top-2 right-2 z-10 touch-manipulation"
                       >
                         <TrashIcon />
                       </IconButton>
                     </Dialog.Trigger>
-                    <Dialog.Content maxWidth="400px">
+                    <Dialog.Content className={DIALOG_CONTENT_SM}>
                       <Dialog.Title>Delete Raid</Dialog.Title>
                       <Dialog.Description>
                         Delete the raid from {new Date(r.start_time).toLocaleDateString()} — {new Date(r.end_time).toLocaleDateString()}? This also removes all member participation data.
                       </Dialog.Description>
-                      <Flex gap="3" mt="4" justify="end">
+                      <Flex
+                        gap="3"
+                        mt="4"
+                        justify="end"
+                        direction={{ initial: "column", sm: "row" }}
+                        wrap="wrap"
+                      >
                         <Dialog.Close>
                           <Button variant="soft" color="gray">Cancel</Button>
                         </Dialog.Close>

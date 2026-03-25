@@ -5,6 +5,7 @@ import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { api, RaidDetail as RaidDetailType } from "../lib/api";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
 
 export function RaidDetail() {
   const { id } = useParams<{ id: string }>();
@@ -69,28 +70,32 @@ export function RaidDetail() {
       {raid.members.length === 0 ? (
         <EmptyState message="No member data available." />
       ) : (
-        <Table.Root variant="surface">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Attacks</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Limit</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Loot</Table.ColumnHeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {raid.members.map((m) => (
-              <Table.Row key={m.id}>
-                <Table.Cell>{m.name}</Table.Cell>
-                <Table.Cell>
-                  {m.attacks} / {m.attack_limit + m.bonus_attack_limit}
-                </Table.Cell>
-                <Table.Cell>{m.attack_limit} + {m.bonus_attack_limit}</Table.Cell>
-                <Table.Cell>{m.capital_resources_looted.toLocaleString()}</Table.Cell>
+        <TableScrollArea>
+          <Table.Root variant="surface" className="min-w-[480px]">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Attacks</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Limit</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Loot</Table.ColumnHeaderCell>
               </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Root>
+            </Table.Header>
+            <Table.Body>
+              {raid.members.map((m) => (
+                <Table.Row key={m.id}>
+                  <Table.Cell>{m.name}</Table.Cell>
+                  <Table.Cell>
+                    {m.attacks} / {m.attack_limit + m.bonus_attack_limit}
+                  </Table.Cell>
+                  <Table.Cell>
+                    {m.attack_limit} + {m.bonus_attack_limit}
+                  </Table.Cell>
+                  <Table.Cell>{m.capital_resources_looted.toLocaleString()}</Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Root>
+        </TableScrollArea>
       )}
     </Box>
   );

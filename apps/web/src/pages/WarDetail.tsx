@@ -5,6 +5,7 @@ import { ArrowLeftIcon, StarFilledIcon } from "@radix-ui/react-icons";
 import { api, WarDetail as WarDetailType } from "../lib/api";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
 
 function Stars({ count }: { count: number }) {
   return (
@@ -85,30 +86,34 @@ export function WarDetail() {
       {war.attacks.length === 0 ? (
         <EmptyState message="No attacks recorded." />
       ) : (
-        <Table.Root variant="surface">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Attacker</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Defender</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Destruction</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Duration</Table.ColumnHeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {war.attacks.map((a) => (
-              <Table.Row key={a.id}>
-                <Table.Cell>{a.attack_order}</Table.Cell>
-                <Table.Cell>{a.attacker_tag}</Table.Cell>
-                <Table.Cell>{a.defender_tag}</Table.Cell>
-                <Table.Cell><Stars count={a.stars} /></Table.Cell>
-                <Table.Cell>{a.destruction_percentage.toFixed(1)}%</Table.Cell>
-                <Table.Cell>{a.duration ? `${a.duration}s` : "—"}</Table.Cell>
+        <TableScrollArea>
+          <Table.Root variant="surface" className="min-w-[640px]">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Attacker</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Defender</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Destruction</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Duration</Table.ColumnHeaderCell>
               </Table.Row>
-            ))}
-          </Table.Body>
-        </Table.Root>
+            </Table.Header>
+            <Table.Body>
+              {war.attacks.map((a) => (
+                <Table.Row key={a.id}>
+                  <Table.Cell>{a.attack_order}</Table.Cell>
+                  <Table.Cell>{a.attacker_tag}</Table.Cell>
+                  <Table.Cell>{a.defender_tag}</Table.Cell>
+                  <Table.Cell>
+                    <Stars count={a.stars} />
+                  </Table.Cell>
+                  <Table.Cell>{a.destruction_percentage.toFixed(1)}%</Table.Cell>
+                  <Table.Cell>{a.duration ? `${a.duration}s` : "—"}</Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table.Root>
+        </TableScrollArea>
       )}
     </Box>
   );

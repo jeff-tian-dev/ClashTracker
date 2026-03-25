@@ -19,6 +19,8 @@ import {
 } from "../lib/api";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
+import { DIALOG_CONTENT_LG } from "../lib/dialogClasses";
 
 /** Dedup archive days — not shown in the modal date picker (matches API filter). */
 const HIDDEN_LEGENDS_DAYS = new Set(["2026-03-22"]);
@@ -87,36 +89,41 @@ function BattleTable({ battles, type }: { battles: LegendsBattle[]; type: "attac
   }
 
   return (
-    <Table.Root variant="surface" size="1">
-      <Table.Header>
-        <Table.Row>
-          <Table.ColumnHeaderCell>Opponent</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Destruction</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Trophies</Table.ColumnHeaderCell>
-          <Table.ColumnHeaderCell>Time</Table.ColumnHeaderCell>
-        </Table.Row>
-      </Table.Header>
-      <Table.Body>
-        {battles.map((b) => (
-          <Table.Row key={b.id}>
-            <Table.Cell>{b.opponent_name || b.opponent_tag}</Table.Cell>
-            <Table.Cell><Stars count={b.stars} /></Table.Cell>
-            <Table.Cell>{b.destruction_pct}%</Table.Cell>
-            <Table.Cell>
-              <Text color={type === "attack" ? "green" : "red"} weight="medium">
-                {type === "attack" ? "+" : "−"}{b.trophies}
-              </Text>
-            </Table.Cell>
-            <Table.Cell>
-              <Text size="1" color="gray">
-                {new Date(b.first_seen_at).toLocaleTimeString()}
-              </Text>
-            </Table.Cell>
+    <TableScrollArea inset={false}>
+      <Table.Root variant="surface" size="1" className="min-w-[520px]">
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeaderCell>Opponent</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Destruction</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Trophies</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Time</Table.ColumnHeaderCell>
           </Table.Row>
-        ))}
-      </Table.Body>
-    </Table.Root>
+        </Table.Header>
+        <Table.Body>
+          {battles.map((b) => (
+            <Table.Row key={b.id}>
+              <Table.Cell>{b.opponent_name || b.opponent_tag}</Table.Cell>
+              <Table.Cell>
+                <Stars count={b.stars} />
+              </Table.Cell>
+              <Table.Cell>{b.destruction_pct}%</Table.Cell>
+              <Table.Cell>
+                <Text color={type === "attack" ? "green" : "red"} weight="medium">
+                  {type === "attack" ? "+" : "−"}
+                  {b.trophies}
+                </Text>
+              </Table.Cell>
+              <Table.Cell>
+                <Text size="1" color="gray">
+                  {new Date(b.first_seen_at).toLocaleTimeString()}
+                </Text>
+              </Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table.Root>
+    </TableScrollArea>
   );
 }
 
@@ -207,17 +214,12 @@ export function Legends() {
         </Flex>
         <label
           htmlFor="legends-july-only"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            cursor: "pointer",
-          }}
+          className="inline-flex items-center gap-2 cursor-pointer touch-manipulation py-1"
         >
           <Text size="2" weight="medium">
             July only
           </Text>
-          <Switch id="legends-july-only" checked={julyOnly} onCheckedChange={setJulyOnly} />
+          <Switch id="legends-july-only" size="2" checked={julyOnly} onCheckedChange={setJulyOnly} />
         </label>
       </Flex>
       {julyOnly && (
@@ -239,26 +241,27 @@ export function Legends() {
       ) : entries.length === 0 ? (
         <EmptyState message="No players in Legends League in the roster yet." />
       ) : (
-        <Table.Root variant="surface">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Attack</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Defense</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Net</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Initial</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Final</Table.ColumnHeaderCell>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {displayRows.map(({ entry: e, rankShown, rankStruckThrough, julyMuted }) => {
-              const hasBattles = e.has_battles !== false;
-              return (
+        <TableScrollArea>
+          <Table.Root variant="surface" className="min-w-[640px]">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Attack</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Defense</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Net</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Initial</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Final</Table.ColumnHeaderCell>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {displayRows.map(({ entry: e, rankShown, rankStruckThrough, julyMuted }) => {
+                const hasBattles = e.has_battles !== false;
+                return (
               <Table.Row
                 key={e.player_tag}
                 className={
-                  "cursor-pointer transition-colors hover:bg-[var(--gray-3)]" +
+                  "cursor-pointer transition-colors hover:bg-[var(--gray-3)] [&_td]:!py-3 md:[&_td]:!py-2" +
                   (julyMuted ? " opacity-[0.55]" : "")
                 }
                 onClick={() => openDetail(e.player_tag)}
@@ -322,8 +325,9 @@ export function Legends() {
               </Table.Row>
             );
             })}
-          </Table.Body>
-        </Table.Root>
+            </Table.Body>
+          </Table.Root>
+        </TableScrollArea>
       )}
 
       <Dialog.Root
@@ -336,7 +340,7 @@ export function Legends() {
           }
         }}
       >
-        <Dialog.Content maxWidth="600px">
+        <Dialog.Content className={DIALOG_CONTENT_LG}>
           {detailLoading && !detail ? (
             <LoadingSpinner />
           ) : detail ? (

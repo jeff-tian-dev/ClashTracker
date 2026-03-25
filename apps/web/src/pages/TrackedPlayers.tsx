@@ -16,6 +16,8 @@ import { api, TrackedPlayer } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
+import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 
 function displayLabel(r: TrackedPlayer) {
   const n = r.display_name?.trim();
@@ -158,17 +160,18 @@ export function TrackedPlayers() {
       ) : rows.length === 0 ? (
         <EmptyState message="No July roster players yet. Admins can add a player tag above." />
       ) : (
-        <Table.Root variant="surface">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
-              {isAdmin && <Table.ColumnHeaderCell />}
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
+        <TableScrollArea>
+          <Table.Root variant="surface" className="min-w-[560px]">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
+                {isAdmin && <Table.ColumnHeaderCell />}
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
             {rows.map((r) => (
               <Table.Row key={r.player_tag}>
                 <Table.Cell>
@@ -182,8 +185,8 @@ export function TrackedPlayers() {
                         type="button"
                         variant="ghost"
                         color="gray"
-                        size="1"
-                        className="shrink-0 opacity-0 transition-opacity group-hover/name:opacity-100"
+                        size={{ initial: "2", md: "1" }}
+                        className="shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover/name:opacity-100"
                         aria-label="Edit name"
                         onClick={() => openEdit(r)}
                       >
@@ -198,16 +201,22 @@ export function TrackedPlayers() {
                   <Table.Cell>
                     <Dialog.Root>
                       <Dialog.Trigger>
-                        <IconButton variant="ghost" color="red" size="1">
+                        <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
                           <TrashIcon />
                         </IconButton>
                       </Dialog.Trigger>
-                      <Dialog.Content maxWidth="400px">
+                      <Dialog.Content className={DIALOG_CONTENT_SM}>
                         <Dialog.Title>Remove from July roster</Dialog.Title>
                         <Dialog.Description>
                           {`Remove ${displayLabel(r)} (${r.player_tag}) from the July list? They will only update again if they are in a tracked clan.`}
                         </Dialog.Description>
-                        <Flex gap="3" mt="4" justify="end">
+                        <Flex
+                          gap="3"
+                          mt="4"
+                          justify="end"
+                          direction={{ initial: "column", sm: "row" }}
+                          wrap="wrap"
+                        >
                           <Dialog.Close>
                             <Button variant="soft" color="gray">
                               Cancel
@@ -225,12 +234,13 @@ export function TrackedPlayers() {
                 )}
               </Table.Row>
             ))}
-          </Table.Body>
-        </Table.Root>
+            </Table.Body>
+          </Table.Root>
+        </TableScrollArea>
       )}
 
       <Dialog.Root open={editRow !== null} onOpenChange={(open) => !open && setEditRow(null)}>
-        <Dialog.Content maxWidth="400px">
+        <Dialog.Content className={DIALOG_CONTENT_SM}>
           <Dialog.Title>Edit display name</Dialog.Title>
           <Dialog.Description size="2" color="gray" mb="3">
             {editRow?.player_tag}
@@ -247,7 +257,12 @@ export function TrackedPlayers() {
               {editError}
             </Text>
           )}
-          <Flex gap="3" justify="end">
+          <Flex
+            gap="3"
+            justify="end"
+            direction={{ initial: "column", sm: "row" }}
+            wrap="wrap"
+          >
             <Dialog.Close>
               <Button variant="soft" color="gray" disabled={editSaving}>
                 Cancel

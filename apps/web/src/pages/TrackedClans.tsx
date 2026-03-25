@@ -16,6 +16,8 @@ import { api, TrackedClan } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
+import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 
 export function TrackedClans() {
   const { isAdmin, adminKey } = useAdmin();
@@ -119,19 +121,20 @@ export function TrackedClans() {
       ) : clans.length === 0 ? (
         <EmptyState message="No clans being tracked. Admins can add a clan tag above." />
       ) : (
-        <Table.Root variant="surface">
-          <Table.Header>
-            <Table.Row>
-              <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Clan Name</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Level</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Members</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
-              <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
-              {isAdmin && <Table.ColumnHeaderCell />}
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
+        <TableScrollArea>
+          <Table.Root variant="surface" className="min-w-[720px]">
+            <Table.Header>
+              <Table.Row>
+                <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Clan Name</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Level</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Members</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
+                <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
+                {isAdmin && <Table.ColumnHeaderCell />}
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
             {clans.map((c) => (
               <Table.Row key={c.clan_tag}>
                 <Table.Cell>
@@ -148,16 +151,22 @@ export function TrackedClans() {
                   <Table.Cell>
                     <Dialog.Root>
                       <Dialog.Trigger>
-                        <IconButton variant="ghost" color="red" size="1">
+                        <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
                           <TrashIcon />
                         </IconButton>
                       </Dialog.Trigger>
-                      <Dialog.Content maxWidth="400px">
+                      <Dialog.Content className={DIALOG_CONTENT_SM}>
                         <Dialog.Title>Remove Clan</Dialog.Title>
                         <Dialog.Description>
                           Stop tracking {c.clans?.name || c.clan_tag}? This won't delete existing data.
                         </Dialog.Description>
-                        <Flex gap="3" mt="4" justify="end">
+                        <Flex
+                          gap="3"
+                          mt="4"
+                          justify="end"
+                          direction={{ initial: "column", sm: "row" }}
+                          wrap="wrap"
+                        >
                           <Dialog.Close>
                             <Button variant="soft" color="gray">Cancel</Button>
                           </Dialog.Close>
@@ -173,8 +182,9 @@ export function TrackedClans() {
                 )}
               </Table.Row>
             ))}
-          </Table.Body>
-        </Table.Root>
+            </Table.Body>
+          </Table.Root>
+        </TableScrollArea>
       )}
     </Box>
   );

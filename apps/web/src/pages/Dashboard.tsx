@@ -4,6 +4,7 @@ import { Box, Card, Flex, Grid, Heading, Text, Table, Badge } from "@radix-ui/th
 import { api, DashboardData } from "../lib/api";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
+import { TableScrollArea } from "../components/TableScrollArea";
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
@@ -65,30 +66,32 @@ export function Dashboard() {
           {data.recent_wars.length === 0 ? (
             <EmptyState message="No wars recorded yet." />
           ) : (
-            <Table.Root variant="surface">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeaderCell>Opponent</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Result</Table.ColumnHeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {data.recent_wars.map((w) => (
-                  <Table.Row key={w.id}>
-                    <Table.Cell>
-                      <Link to={`/wars/${w.id}`} className="text-[var(--accent-11)] hover:underline">
-                        {w.opponent_name || "Unknown"}
-                      </Link>
-                    </Table.Cell>
-                    <Table.Cell>
-                      {w.clan_stars} - {w.opponent_stars}
-                    </Table.Cell>
-                    <Table.Cell>{resultBadge(w.result)}</Table.Cell>
+            <TableScrollArea>
+              <Table.Root variant="surface">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>Opponent</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Result</Table.ColumnHeaderCell>
                   </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
+                </Table.Header>
+                <Table.Body>
+                  {data.recent_wars.map((w) => (
+                    <Table.Row key={w.id}>
+                      <Table.Cell>
+                        <Link to={`/wars/${w.id}`} className="text-[var(--accent-11)] hover:underline">
+                          {w.opponent_name || "Unknown"}
+                        </Link>
+                      </Table.Cell>
+                      <Table.Cell>
+                        {w.clan_stars} - {w.opponent_stars}
+                      </Table.Cell>
+                      <Table.Cell>{resultBadge(w.result)}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
           )}
         </Box>
 
@@ -99,28 +102,30 @@ export function Dashboard() {
           {data.recent_raids.length === 0 ? (
             <EmptyState message="No raids recorded yet." />
           ) : (
-            <Table.Root variant="surface">
-              <Table.Header>
-                <Table.Row>
-                  <Table.ColumnHeaderCell>Date</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Loot</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Raids</Table.ColumnHeaderCell>
-                </Table.Row>
-              </Table.Header>
-              <Table.Body>
-                {data.recent_raids.map((r) => (
-                  <Table.Row key={r.id}>
-                    <Table.Cell>
-                      <Link to={`/raids/${r.id}`} className="text-[var(--accent-11)] hover:underline">
-                        {new Date(r.start_time).toLocaleDateString()}
-                      </Link>
-                    </Table.Cell>
-                    <Table.Cell>{r.capital_total_loot.toLocaleString()}</Table.Cell>
-                    <Table.Cell>{r.raids_completed}</Table.Cell>
+            <TableScrollArea>
+              <Table.Root variant="surface">
+                <Table.Header>
+                  <Table.Row>
+                    <Table.ColumnHeaderCell>Date</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Loot</Table.ColumnHeaderCell>
+                    <Table.ColumnHeaderCell>Raids</Table.ColumnHeaderCell>
                   </Table.Row>
-                ))}
-              </Table.Body>
-            </Table.Root>
+                </Table.Header>
+                <Table.Body>
+                  {data.recent_raids.map((r) => (
+                    <Table.Row key={r.id}>
+                      <Table.Cell>
+                        <Link to={`/raids/${r.id}`} className="text-[var(--accent-11)] hover:underline">
+                          {new Date(r.start_time).toLocaleDateString()}
+                        </Link>
+                      </Table.Cell>
+                      <Table.Cell>{r.capital_total_loot.toLocaleString()}</Table.Cell>
+                      <Table.Cell>{r.raids_completed}</Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Root>
+            </TableScrollArea>
           )}
         </Box>
       </Grid>

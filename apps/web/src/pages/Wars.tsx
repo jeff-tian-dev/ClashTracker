@@ -7,6 +7,7 @@ import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { Pagination } from "../components/Pagination";
+import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 
 function resultBadge(result: string | null, state: string) {
   if (state === "preparation") return <Badge color="blue">Prep</Badge>;
@@ -92,18 +93,24 @@ export function Wars() {
                       <IconButton
                         variant="soft"
                         color="red"
-                        size="1"
-                        className="!absolute top-2 right-2 z-10"
+                        size={{ initial: "2", md: "1" }}
+                        className="!absolute top-2 right-2 z-10 touch-manipulation"
                       >
                         <TrashIcon />
                       </IconButton>
                     </Dialog.Trigger>
-                    <Dialog.Content maxWidth="400px">
+                    <Dialog.Content className={DIALOG_CONTENT_SM}>
                       <Dialog.Title>Delete War</Dialog.Title>
                       <Dialog.Description>
                         Delete the war vs {w.opponent_name || "Unknown"} ({new Date(w.start_time).toLocaleDateString()})? This also removes all associated attacks.
                       </Dialog.Description>
-                      <Flex gap="3" mt="4" justify="end">
+                      <Flex
+                        gap="3"
+                        mt="4"
+                        justify="end"
+                        direction={{ initial: "column", sm: "row" }}
+                        wrap="wrap"
+                      >
                         <Dialog.Close>
                           <Button variant="soft" color="gray">Cancel</Button>
                         </Dialog.Close>
