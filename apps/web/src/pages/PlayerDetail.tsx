@@ -44,23 +44,16 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
 
   return (
     <Flex direction="column" gap="3">
-      <div>
-        <Flex align="baseline" gap="2" wrap="wrap" mb="1">
-          <Text size="3" weight="bold" as="span">
-            Attack activity (last 7 days)
-          </Text>
-          <Text size="1" color="gray" as="span" className="italic shrink-0">
-            {spanDays != null
-              ? `(${spanDays} days of data)`
-              : "(no attacks logged yet in this window)"}
-          </Text>
-        </Flex>
-        <Text size="2" color="gray" as="div">
-          By hour of day in your local timezone; each bar is attacks in that hour through :59. Heights are relative to your busiest
-          hour in this window (that bar is full height). Tiny counts use a 4px minimum so the bar stays visible and hoverable. Up to
-          7 days of data—sparse bars do not mean inactive.
+      <Flex align="baseline" gap="2" wrap="wrap">
+        <Text size="3" weight="bold" as="span">
+          Attack activity (last 7 days)
         </Text>
-      </div>
+        <Text size="1" color="gray" as="span" className="italic shrink-0">
+          {spanDays != null
+            ? `(${spanDays} days of data)`
+            : "(no attacks logged yet in this window)"}
+        </Text>
+      </Flex>
       {total === 0 ? (
         <Text size="2" color="gray">
           No attack timestamps yet. After ingestion records new battles from your battle log, hourly counts will appear here.
