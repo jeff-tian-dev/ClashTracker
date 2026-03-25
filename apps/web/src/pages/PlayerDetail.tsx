@@ -44,14 +44,20 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
 
   return (
     <Flex direction="column" gap="3">
-      <Flex align="baseline" gap="2" wrap="wrap">
-        <Text size="3" weight="bold" as="span">
-          Attack activity (last 7 days)
-        </Text>
-        <Text size="1" color="gray" as="span" className="italic shrink-0">
-          {spanDays != null
-            ? `(${spanDays} days of data)`
-            : "(no attacks logged yet in this window)"}
+      <Flex direction="column" gap="2">
+        <Flex align="baseline" gap="2" wrap="wrap">
+          <Text size="3" weight="bold" as="span">
+            Attack activity (last 7 days)
+          </Text>
+          <Text size="1" color="gray" as="span" className="italic shrink-0">
+            {spanDays != null
+              ? `(${spanDays} days of data)`
+              : "(no attacks logged yet in this window)"}
+          </Text>
+        </Flex>
+        <Text size="2" color="gray">
+          Attack times by hour over the last 7 days, in your local timezone. Each bar is one clock hour; taller bars mean more
+          attacks then.
         </Text>
       </Flex>
       {total === 0 ? (
