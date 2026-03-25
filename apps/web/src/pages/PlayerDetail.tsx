@@ -37,8 +37,9 @@ function formatAttackHistorySpanDays(attacks: { attacked_at: string }[]): string
 
 function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) {
   const counts = bucketAttacksByLocalHour(attacks);
-  const max = Math.max(...counts, 1);
   const total = counts.reduce((a, b) => a + b, 0);
+  /** Busiest hour in the window; that bar fills the chart, others are proportional. */
+  const peak = total > 0 ? Math.max(...counts) : 0;
   const spanDays = formatAttackHistorySpanDays(attacks);
 
   return (
@@ -55,8 +56,9 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
           </Text>
         </Flex>
         <Text size="2" color="gray" as="div">
-          By hour of day in your local timezone. Each bar is attacks between that hour and :59. The chart can use up to 7 days;
-          recently tracked players often have fewer days of history—sparse bars do not mean inactive.
+          By hour of day in your local timezone; each bar is attacks in that hour through :59. Heights are relative to your busiest
+          hour in this window (that bar is full height). Tiny counts use a 4px minimum so the bar stays visible and hoverable. Up to
+          7 days of data—sparse bars do not mean inactive.
         </Text>
       </div>
       {total === 0 ? (
@@ -85,7 +87,7 @@ function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) 
                 <div
                   className="w-full max-w-[14px] mx-auto rounded-sm bg-[var(--accent-9)] opacity-90 hover:opacity-100 transition-opacity"
                   style={{
-                    height: `${Math.max((c / max) * 100, c > 0 ? 8 : 0)}%`,
+                    height: c === 0 || peak === 0 ? "0%" : `${(c / peak) * 100}%`,
                     minHeight: c > 0 ? "4px" : undefined,
                   }}
                   title={tip}
