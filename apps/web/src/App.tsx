@@ -27,8 +27,8 @@ export default function App() {
             <Route path="/raids/:id" element={<RaidDetail />} />
             <Route path="/legends" element={<Legends />} />
             <Route path="/tracked-clans" element={<TrackedClans />} />
-            <Route path="/july-players" element={<TrackedPlayers />} />
-            <Route path="/tracked-players" element={<Navigate to="/july-players" replace />} />
+            <Route path="/tracked-players" element={<TrackedPlayers />} />
+            <Route path="/july-players" element={<Navigate to="/tracked-players" replace />} />
           </Route>
         </Routes>
       </HashRouter>

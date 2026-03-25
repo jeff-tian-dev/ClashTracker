@@ -49,6 +49,7 @@ def test_add_tracked_player_normalizes_tag(client, monkeypatch):
     assert mock.inserted["player_tag"] == "#XYZ99"
     assert mock.inserted["display_name"] == "Scout One"
     assert mock.inserted["note"] == "scout"
+    assert mock.inserted["tracking_group"] == "clan_july"
 
 
 def test_add_tracked_player_accepts_legacy_name_json_key(client, monkeypatch):
@@ -78,6 +79,36 @@ def test_add_tracked_player_accepts_legacy_name_json_key(client, monkeypatch):
     assert r.status_code == 201
     assert mock.inserted is not None
     assert mock.inserted["display_name"] == "Legacy Key"
+    assert mock.inserted["tracking_group"] == "clan_july"
+
+
+def test_add_tracked_player_external_group(client, monkeypatch):
+    class _InsertMock:
+        def __init__(self):
+            self.inserted: dict | None = None
+
+        def table(self, _name):
+            return self
+
+        def insert(self, row):
+            self.inserted = row
+            return self
+
+        def execute(self):
+            row = self.inserted or {}
+            return type("R", (), {"data": [row]})()
+
+    mock = _InsertMock()
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: mock)
+
+    r = client.post(
+        "/api/tracked-players",
+        headers=AUTH_HEADER,
+        json={"player_tag": "#EXT", "display_name": "Outsider", "tracking_group": "external"},
+    )
+    assert r.status_code == 201
+    assert mock.inserted is not None
+    assert mock.inserted["tracking_group"] == "external"
 
 
 def test_remove_tracked_player_success(client, monkeypatch):
@@ -155,6 +186,7 @@ def test_add_tracked_player_resolves_name_from_players_when_omitted(client, monk
     assert db.tracked.inserted["player_tag"] == "#ABC"
     assert db.tracked.inserted["display_name"] == "FromDb"
     assert db.tracked.inserted["note"] == "n1"
+    assert db.tracked.inserted["tracking_group"] == "clan_july"
 
 
 def test_add_tracked_player_unknown_when_not_in_players_table(client, monkeypatch):
@@ -204,6 +236,56 @@ def test_add_tracked_player_unknown_when_not_in_players_table(client, monkeypatc
     assert r.status_code == 201
     assert db.tracked.inserted is not None
     assert db.tracked.inserted["display_name"] == "Unknown player"
+    assert db.tracked.inserted["tracking_group"] == "clan_july"
+
+
+def test_list_tracked_players_invalid_tracking_group(client):
+    r = client.get("/api/tracked-players?tracking_group=not_a_group")
+    assert r.status_code == 422
+
+
+def test_list_tracked_players_filter_external(client, monkeypatch):
+    class ListMock:
+        def __init__(self):
+            self.eq_calls: list[tuple[str, str]] = []
+
+        def table(self, _n):
+            return self
+
+        def select(self, *_a, **_k):
+            return self
+
+        def eq(self, col, val):
+            self.eq_calls.append((col, val))
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type(
+                "R",
+                (),
+                {
+                    "data": [
+                        {
+                            "player_tag": "#E",
+                            "display_name": "Ex",
+                            "note": None,
+                            "added_at": "2026-01-01",
+                            "tracking_group": "external",
+                        }
+                    ]
+                },
+            )()
+
+    mock = ListMock()
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: mock)
+
+    r = client.get("/api/tracked-players?tracking_group=external")
+    assert r.status_code == 200
+    assert mock.eq_calls == [("tracking_group", "external")]
+    assert r.json()["data"][0]["tracking_group"] == "external"
 
 
 def test_patch_tracked_player_display_name(client, monkeypatch):
@@ -229,6 +311,7 @@ def test_patch_tracked_player_display_name(client, monkeypatch):
                             "display_name": self.updated["display_name"],
                             "note": None,
                             "added_at": "2026-01-01",
+                            "tracking_group": "clan_july",
                         }
                     ]
                 },

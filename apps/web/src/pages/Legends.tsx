@@ -46,10 +46,16 @@ function compareLegendsTrophyOrder(a: LegendsLeaderboardEntry, b: LegendsLeaderb
   return b.net - a.net;
 }
 
+/** Primary block in “July only” view: clan (July) list, not external pins. */
+function isClanJulyPrimary(e: LegendsLeaderboardEntry): boolean {
+  if (e.tracking_group === "clan_july") return true;
+  if (e.tracking_group === "external") return false;
+  return Boolean(e.is_always_tracked);
+}
+
 type LegendsDisplayRow = {
   entry: LegendsLeaderboardEntry;
-  rankShown: number;
-  rankStruckThrough: boolean;
+  rankLabel: string;
   julyMuted: boolean;
 };
 
@@ -60,25 +66,18 @@ function buildLegendsDisplayRows(
   if (!julyOnly) {
     return entries.map((entry) => ({
       entry,
-      rankShown: entry.rank,
-      rankStruckThrough: false,
+      rankLabel: String(entry.rank),
       julyMuted: false,
     }));
   }
-  const isJuly = (e: LegendsLeaderboardEntry) => Boolean(e.is_always_tracked);
-  const july = entries.filter(isJuly).sort(compareLegendsTrophyOrder);
-  const other = entries.filter((e) => !isJuly(e)).sort(compareLegendsTrophyOrder);
+  const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsTrophyOrder);
+  const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsTrophyOrder);
   const out: LegendsDisplayRow[] = [];
-  july.forEach((entry, i) => {
-    out.push({ entry, rankShown: i + 1, rankStruckThrough: false, julyMuted: false });
+  clanJuly.forEach((entry, i) => {
+    out.push({ entry, rankLabel: String(i + 1), julyMuted: false });
   });
   other.forEach((entry) => {
-    out.push({
-      entry,
-      rankShown: entry.rank,
-      rankStruckThrough: true,
-      julyMuted: true,
-    });
+    out.push({ entry, rankLabel: "—", julyMuted: true });
   });
   return out;
 }
@@ -224,8 +223,8 @@ export function Legends() {
       </Flex>
       {julyOnly && (
         <Text size="2" color="gray" mb="3" style={{ display: "block", maxWidth: 720 }}>
-          July roster first (by final trophies). Everyone else is listed below with the full-leaderboard
-          rank struck through.
+          July clan roster first (by final trophies). External tracked players and everyone else appear
+          below, muted, with “—” in the rank column.
         </Text>
       )}
 
@@ -255,7 +254,7 @@ export function Legends() {
               </Table.Row>
             </Table.Header>
             <Table.Body>
-              {displayRows.map(({ entry: e, rankShown, rankStruckThrough, julyMuted }) => {
+              {displayRows.map(({ entry: e, rankLabel, julyMuted }) => {
                 const hasBattles = e.has_battles !== false;
                 return (
               <Table.Row
@@ -267,12 +266,8 @@ export function Legends() {
                 onClick={() => openDetail(e.player_tag)}
               >
                 <Table.Cell>
-                  <Text
-                    weight="medium"
-                    color={rankStruckThrough ? "gray" : undefined}
-                    style={rankStruckThrough ? { textDecoration: "line-through" } : undefined}
-                  >
-                    {rankShown}
+                  <Text weight="medium" color={julyMuted ? "gray" : undefined}>
+                    {rankLabel}
                   </Text>
                 </Table.Cell>
                 <Table.Cell>

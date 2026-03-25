@@ -115,7 +115,12 @@ export function Players() {
                   <Table.Cell>{p.league_name || "—"}</Table.Cell>
                   <Table.Cell>
                     <Flex gap="2" wrap="wrap" align="center">
-                      {p.is_always_tracked && (
+                      {p.is_always_tracked && p.tracking_group === "external" && (
+                        <Badge size="1" color="amber" variant="soft">
+                          External
+                        </Badge>
+                      )}
+                      {p.is_always_tracked && p.tracking_group !== "external" && (
                         <Badge size="1" color="blue" variant="soft">
                           July
                         </Badge>

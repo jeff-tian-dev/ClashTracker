@@ -12,14 +12,24 @@ router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
 
-def _always_tracked_tag_set(db) -> set[str]:
-    r = db.table("tracked_players").select("player_tag").execute()
-    return {row["player_tag"] for row in (r.data or [])}
+def _tracked_players_by_tag(db) -> dict[str, str]:
+    r = db.table("tracked_players").select("player_tag,tracking_group").execute()
+    out: dict[str, str] = {}
+    for row in r.data or []:
+        tag = row.get("player_tag")
+        if not tag:
+            continue
+        g = row.get("tracking_group") or "clan_july"
+        out[tag] = g
+    return out
 
 
-def _attach_always_flag(rows: list, always: set[str]) -> None:
+def _attach_tracked_flags(rows: list, by_tag: dict[str, str]) -> None:
     for row in rows:
-        row["is_always_tracked"] = row["tag"] in always
+        tag = row["tag"]
+        group = by_tag.get(tag)
+        row["is_always_tracked"] = group is not None
+        row["tracking_group"] = group
 
 
 @router.get("/players")
@@ -50,9 +60,9 @@ def list_players(
     )
     resp = query.execute()
 
-    always = _always_tracked_tag_set(db)
+    by_tag = _tracked_players_by_tag(db)
     data = resp.data or []
-    _attach_always_flag(data, always)
+    _attach_tracked_flags(data, by_tag)
 
     return {
         "data": data,
@@ -109,9 +119,12 @@ def get_player(tag: str):
                 "hint": "Player row missing after query (unexpected empty data).",
             },
         )
-    always = _always_tracked_tag_set(db)
+    by_tag = _tracked_players_by_tag(db)
     row = resp.data
-    row["is_always_tracked"] = row["tag"] in always
+    tag = row["tag"]
+    group = by_tag.get(tag)
+    row["is_always_tracked"] = group is not None
+    row["tracking_group"] = group
     return row
 
 

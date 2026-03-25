@@ -69,3 +69,4 @@ def test_players_first_page_shape(client, monkeypatch):
     body = r.json()
     PaginatedPlayersResponse.model_validate(body)
     assert body["data"][0].get("is_always_tracked") is False
+    assert body["data"][0].get("tracking_group") is None

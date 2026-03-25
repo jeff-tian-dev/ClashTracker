@@ -36,7 +36,7 @@ const NAV_ITEMS = [
   { to: "/raids", label: "Capital Raids", icon: RocketIcon },
   { to: "/legends", label: "Legends", icon: StarFilledIcon },
   { to: "/tracked-clans", label: "Tracked Clans", icon: GearIcon },
-  { to: "/july-players", label: "July Players", icon: BookmarkIcon },
+  { to: "/tracked-players", label: "Tracked Players", icon: BookmarkIcon },
 ];
 
 const iconBtnSize = { initial: "2" as const, md: "1" as const };

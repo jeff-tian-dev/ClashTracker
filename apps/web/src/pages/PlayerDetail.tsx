@@ -133,7 +133,12 @@ export function PlayerDetail() {
       <Flex align="center" gap="3" mb="4" wrap="wrap">
         <Heading size="6">{player.name}</Heading>
         <Badge variant="outline">{player.tag}</Badge>
-        {player.is_always_tracked && (
+        {player.is_always_tracked && player.tracking_group === "external" && (
+          <Badge color="amber" variant="soft">
+            External
+          </Badge>
+        )}
+        {player.is_always_tracked && player.tracking_group !== "external" && (
           <Badge color="blue" variant="soft">
             July
           </Badge>

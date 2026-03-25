@@ -59,13 +59,27 @@ export const api = {
   removeTrackedClan: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-clans/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
-  trackedPlayers: () => request<{ data: TrackedPlayer[] }>("/api/tracked-players"),
-  addTrackedPlayer: (player_tag: string, note: string | undefined, key: string) =>
+  trackedPlayers: (params?: { tracking_group?: "clan_july" | "external" }) => {
+    const qs =
+      params?.tracking_group != null
+        ? `?tracking_group=${encodeURIComponent(params.tracking_group)}`
+        : "";
+    return request<{ data: TrackedPlayer[] }>(`/api/tracked-players${qs}`);
+  },
+  addTrackedPlayer: (
+    player_tag: string,
+    key: string,
+    opts?: { note?: string; display_name?: string; tracking_group?: "clan_july" | "external" },
+  ) =>
     authedRequest<TrackedPlayer>("/api/tracked-players", key, {
       method: "POST",
       body: JSON.stringify({
         player_tag,
-        ...(note != null && note.trim() !== "" ? { note: note.trim() } : {}),
+        ...(opts?.note != null && opts.note.trim() !== "" ? { note: opts.note.trim() } : {}),
+        ...(opts?.display_name != null && opts.display_name.trim() !== ""
+          ? { display_name: opts.display_name.trim() }
+          : {}),
+        ...(opts?.tracking_group != null ? { tracking_group: opts.tracking_group } : {}),
       }),
     }),
   updateTrackedPlayerDisplayName: (tag: string, display_name: string, key: string) =>
@@ -131,6 +145,8 @@ export interface Player {
   left_tracked_roster_at?: string | null;
   roster_sort_bucket?: number;
   is_always_tracked?: boolean;
+  /** When pinned in tracked_players: clan (July) vs external. */
+  tracking_group?: "clan_july" | "external" | null;
 }
 
 export interface War {
@@ -214,6 +230,7 @@ export interface TrackedPlayer {
   display_name: string;
   note: string | null;
   added_at: string;
+  tracking_group: "clan_july" | "external";
 }
 
 export interface LegendsLeaderboardEntry {
@@ -227,8 +244,10 @@ export interface LegendsLeaderboardEntry {
   final_trophies: number;
   /** False when no battles this legends day; omit/true treated as activity (older API). */
   has_battles?: boolean;
-  /** Pinned "July" roster (tracked_players). */
+  /** In tracked_players (any group). */
   is_always_tracked?: boolean;
+  /** When pinned: clan_july, external, or null if not in tracked_players. */
+  tracking_group?: "clan_july" | "external" | null;
 }
 
 export interface LegendsLeaderboard {

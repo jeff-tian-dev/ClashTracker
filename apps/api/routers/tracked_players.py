@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, field_validator, model_validator
 
 from ..auth import require_admin
@@ -9,12 +9,15 @@ from ..database import get_db
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
+_TRACKING_GROUPS = frozenset({"clan_july", "external"})
+
 
 class TrackedPlayerCreate(BaseModel):
     player_tag: str
     """Omit to resolve from `players` table, else fall back to \"Unknown player\"."""
     display_name: str | None = None
     note: str | None = None
+    tracking_group: str = "clan_july"
 
     @model_validator(mode="before")
     @classmethod
@@ -30,6 +33,14 @@ class TrackedPlayerCreate(BaseModel):
             return None
         s = (v or "").strip()
         return s if s else None
+
+    @field_validator("tracking_group")
+    @classmethod
+    def tracking_group_valid(cls, v: str) -> str:
+        s = (v or "").strip()
+        if s not in _TRACKING_GROUPS:
+            raise ValueError(f"tracking_group must be one of: {sorted(_TRACKING_GROUPS)}")
+        return s
 
 
 class TrackedPlayerUpdate(BaseModel):
@@ -62,15 +73,26 @@ def _resolve_display_name_from_players(db, tag: str) -> str:
 
 
 @router.get("/tracked-players")
-def list_tracked_players():
+def list_tracked_players(
+    tracking_group: str | None = Query(
+        None,
+        description="Filter: clan_july or external. Omit to return all.",
+    ),
+):
     db = get_db()
+    if tracking_group is not None and tracking_group not in _TRACKING_GROUPS:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "invalid_tracking_group",
+                "hint": f"Use one of: {sorted(_TRACKING_GROUPS)}",
+            },
+        )
     logger.debug("list tracked_players", extra={"event": "api.db.query", "table": "tracked_players"})
-    resp = (
-        db.table("tracked_players")
-        .select("*")
-        .order("added_at", desc=True)
-        .execute()
-    )
+    query = db.table("tracked_players").select("*")
+    if tracking_group is not None:
+        query = query.eq("tracking_group", tracking_group)
+    resp = query.order("added_at", desc=True).execute()
     if resp.data is None or not isinstance(resp.data, list):
         logger.error(
             "tracked_players invariant failed",
@@ -104,6 +126,8 @@ def list_tracked_players():
 
     for row in rows:
         row.pop("name", None)
+        if not row.get("tracking_group"):
+            row["tracking_group"] = "clan_july"
 
     return {"data": rows}
 
@@ -118,7 +142,12 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
         if body.display_name
         else _resolve_display_name_from_players(db, tag)
     )
-    row = {"player_tag": tag, "display_name": display_name, "note": body.note}
+    row = {
+        "player_tag": tag,
+        "display_name": display_name,
+        "note": body.note,
+        "tracking_group": body.tracking_group,
+    }
     try:
         resp = db.table("tracked_players").insert(row).execute()
     except Exception as exc:
@@ -154,12 +183,15 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
             "insert returned no row",
             extra={"event": "api.db.unexpected", "table": "tracked_players", "player_tag": tag},
         )
+        row.setdefault("tracking_group", body.tracking_group)
         return row
     out = resp.data[0]
     if isinstance(out, dict):
         if "display_name" not in out and out.get("name") is not None:
             out["display_name"] = out["name"]
         out.pop("name", None)
+        if not out.get("tracking_group"):
+            out["tracking_group"] = body.tracking_group
     return out
 
 
@@ -180,13 +212,15 @@ def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends
     if not rows:
         raise HTTPException(
             status_code=404,
-            detail={"error": "not_found", "player_tag": tag, "hint": "No July roster row for this tag."},
+            detail={"error": "not_found", "player_tag": tag, "hint": "No tracked player row for this tag."},
         )
     out = rows[0]
     if isinstance(out, dict):
         if "display_name" not in out and out.get("name") is not None:
             out["display_name"] = out["name"]
         out.pop("name", None)
+        if not out.get("tracking_group"):
+            out["tracking_group"] = "clan_july"
     return out
 
 
