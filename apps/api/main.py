@@ -105,6 +105,8 @@ _origins = [
     "http://127.0.0.1:5173",
     "https://jeff-tian-dev.github.io",
     "https://clashtracker.duckdns.org",
+    "https://julytracker.netlify.app",
+    "https://clashjulytracker.netlify.app",
     *[o.strip() for o in _extra_origins if o.strip()],
 ]
 
