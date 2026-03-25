@@ -27,6 +27,25 @@ function authedRequest<T>(path: string, adminKey: string, init?: RequestInit): P
   });
 }
 
+function patchTrackedPlayerRequest(
+  tag: string,
+  key: string,
+  body: { display_name?: string; tracking_group?: "clan_july" | "external" },
+) {
+  const payload: Record<string, string> = {};
+  if (body.display_name !== undefined) {
+    const d = body.display_name.trim();
+    if (d) payload.display_name = d;
+  }
+  if (body.tracking_group !== undefined) {
+    payload.tracking_group = body.tracking_group;
+  }
+  return authedRequest<TrackedPlayer>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export const api = {
   dashboard: () => request<DashboardData>("/api/dashboard"),
 
@@ -82,11 +101,9 @@ export const api = {
         ...(opts?.tracking_group != null ? { tracking_group: opts.tracking_group } : {}),
       }),
     }),
+  patchTrackedPlayer: patchTrackedPlayerRequest,
   updateTrackedPlayerDisplayName: (tag: string, display_name: string, key: string) =>
-    authedRequest<TrackedPlayer>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, {
-      method: "PATCH",
-      body: JSON.stringify({ display_name }),
-    }),
+    patchTrackedPlayerRequest(tag, key, { display_name }),
   removeTrackedPlayer: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 

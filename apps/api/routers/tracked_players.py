@@ -44,15 +44,34 @@ class TrackedPlayerCreate(BaseModel):
 
 
 class TrackedPlayerUpdate(BaseModel):
-    display_name: str
+    display_name: str | None = None
+    tracking_group: str | None = None
 
     @field_validator("display_name")
     @classmethod
-    def display_name_stripped_nonempty(cls, v: str) -> str:
+    def display_name_if_provided(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
         s = (v or "").strip()
         if not s:
-            raise ValueError("display_name is required")
+            raise ValueError("display_name cannot be empty")
         return s
+
+    @field_validator("tracking_group")
+    @classmethod
+    def tracking_group_if_provided(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        s = (v or "").strip()
+        if s not in _TRACKING_GROUPS:
+            raise ValueError(f"tracking_group must be one of: {sorted(_TRACKING_GROUPS)}")
+        return s
+
+    @model_validator(mode="after")
+    def at_least_one_field(self):
+        if self.display_name is None and self.tracking_group is None:
+            raise ValueError("Provide display_name and/or tracking_group")
+        return self
 
 
 def _normalize_player_tag(raw: str) -> str:
@@ -198,16 +217,17 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
 @router.patch("/tracked-players/{tag:path}")
 def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends(require_admin)):
     db = get_db()
+    norm_tag = _normalize_player_tag(tag)
+    update_payload: dict = {}
+    if body.display_name is not None:
+        update_payload["display_name"] = body.display_name
+    if body.tracking_group is not None:
+        update_payload["tracking_group"] = body.tracking_group
     logger.debug(
         "patch tracked_players",
-        extra={"event": "api.db.write", "table": "tracked_players", "player_tag": tag},
+        extra={"event": "api.db.write", "table": "tracked_players", "player_tag": norm_tag},
     )
-    resp = (
-        db.table("tracked_players")
-        .update({"display_name": body.display_name})
-        .eq("player_tag", tag)
-        .execute()
-    )
+    resp = db.table("tracked_players").update(update_payload).eq("player_tag", norm_tag).execute()
     rows = resp.data or []
     if not rows:
         raise HTTPException(

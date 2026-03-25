@@ -55,26 +55,40 @@ export function Players() {
     }
   }
 
-  async function handleAddTracked(p: Player, tracking_group: "clan_july" | "external") {
+  function effectiveTrackedGroup(p: Player): "clan_july" | "external" | null {
+    if (!p.is_always_tracked) return null;
+    return p.tracking_group ?? "clan_july";
+  }
+
+  async function handleTrackedGroupAction(p: Player, target: "clan_july" | "external") {
     if (!adminKey) return;
+    const current = effectiveTrackedGroup(p);
+    if (current === target) return;
+
     setPendingTrackTag(p.tag);
     try {
-      await api.addTrackedPlayer(p.tag, adminKey, {
-        tracking_group,
-        display_name: p.name,
-      });
+      if (current == null) {
+        await api.addTrackedPlayer(p.tag, adminKey, {
+          tracking_group: target,
+          display_name: p.name,
+        });
+      } else {
+        await api.patchTrackedPlayer(p.tag, adminKey, { tracking_group: target });
+      }
       setPlayers((prev) =>
         prev.map((row) =>
-          row.tag === p.tag ? { ...row, is_always_tracked: true, tracking_group } : row,
+          row.tag === p.tag ? { ...row, is_always_tracked: true, tracking_group: target } : row,
         ),
       );
     } catch (err) {
-      console.error("Failed to add tracked player", err);
+      console.error("Failed to update tracked player", err);
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes("409")) {
-        window.alert("This player is already on a tracked list. Remove them there first to change group.");
+        window.alert(
+          "Could not add this player (already on a tracked list). Try again or refresh the page.",
+        );
       } else {
-        window.alert("Failed to add player to tracked list.");
+        window.alert("Failed to update tracked list for this player.");
       }
     } finally {
       setPendingTrackTag(null);
@@ -141,6 +155,11 @@ export function Players() {
                 {players.map((p) => {
                   const leftAt = p.left_tracked_roster_at;
                   const isLeft = Boolean(leftAt);
+                  const trackedG = effectiveTrackedGroup(p);
+                  const shieldDisabled =
+                    pendingTrackTag === p.tag || (p.is_always_tracked && trackedG === "clan_july");
+                  const bookmarkDisabled =
+                    pendingTrackTag === p.tag || (p.is_always_tracked && trackedG === "external");
                   return (
                 <Table.Row key={p.tag} className={isLeft ? "opacity-60" : undefined}>
                   <Table.Cell>
@@ -192,10 +211,10 @@ export function Players() {
                           variant="ghost"
                           color="gray"
                           size={{ initial: "2", md: "1" }}
-                          disabled={Boolean(p.is_always_tracked) || pendingTrackTag === p.tag}
-                          aria-label="Add to Clan (July) tracked list"
-                          title="Add to Clan (July) tracked list"
-                          onClick={() => handleAddTracked(p, "clan_july")}
+                          disabled={shieldDisabled}
+                          aria-label="Add or move to Clan (July) tracked list"
+                          title="Add or move to Clan (July) tracked list"
+                          onClick={() => handleTrackedGroupAction(p, "clan_july")}
                         >
                           <ShieldIcon />
                         </IconButton>
@@ -204,10 +223,10 @@ export function Players() {
                           variant="ghost"
                           color="gray"
                           size={{ initial: "2", md: "1" }}
-                          disabled={Boolean(p.is_always_tracked) || pendingTrackTag === p.tag}
-                          aria-label="Add to external tracked list"
-                          title="Add to external tracked list"
-                          onClick={() => handleAddTracked(p, "external")}
+                          disabled={bookmarkDisabled}
+                          aria-label="Add or move to external tracked list"
+                          title="Add or move to external tracked list"
+                          onClick={() => handleTrackedGroupAction(p, "external")}
                         >
                           <BookmarkIcon />
                         </IconButton>
