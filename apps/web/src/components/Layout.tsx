@@ -219,13 +219,9 @@ export function Layout() {
         <SidebarNavContent />
       </nav>
 
-      <Flex
-        align="center"
-        justify="between"
-        gap="3"
-        px="4"
-        py="3"
-        className="md:hidden shrink-0 border-b border-[var(--gray-5)] bg-[var(--gray-2)] sticky top-0 z-10"
+      {/* Native header: Radix Flex was overriding `md:hidden` so the mobile bar showed on desktop. */}
+      <header
+        className="flex md:hidden shrink-0 items-center justify-between gap-3 border-b border-[var(--gray-5)] bg-[var(--gray-2)] sticky top-0 z-10 px-4 py-3"
         style={{
           paddingTop: "max(0.75rem, env(safe-area-inset-top))",
           paddingLeft: "max(1rem, env(safe-area-inset-left))",
@@ -277,7 +273,7 @@ export function Layout() {
             </nav>
           </Dialog.Content>
         </Dialog.Root>
-      </Flex>
+      </header>
 
       <Box className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
         <Outlet />
