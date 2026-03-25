@@ -74,7 +74,7 @@ def list_players(
 
 @router.get("/players/{tag:path}/activity")
 def get_player_activity(tag: str):
-    """Attack timestamps (UTC) from battle logs for the last 7 days (for local-timezone charts)."""
+    """Attack timestamps (UTC) from battle logs for the last 90 days (client charts use local dates)."""
     db = get_db()
     logger.debug(
         "get player activity",
@@ -85,7 +85,7 @@ def get_player_activity(tag: str):
     except APIError as exc:
         raise http_exception_for_single_lookup(exc, resource="player", identifier=tag) from exc
 
-    since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    since = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
     resp = (
         db.table("player_attack_events")
         .select("attacked_at")

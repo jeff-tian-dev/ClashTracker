@@ -54,6 +54,7 @@ export const api = {
     return request<PaginatedResponse<Player>>(`/api/players${qs}`);
   },
   player: (tag: string) => request<Player>(`/api/players/${encodeURIComponent(tag)}`),
+  /** Attack timestamps for charts; server returns the last ~90 days. */
   playerActivity: (tag: string) =>
     request<PlayerActivityResponse>(`/api/players/${encodeURIComponent(tag)}/activity`),
 

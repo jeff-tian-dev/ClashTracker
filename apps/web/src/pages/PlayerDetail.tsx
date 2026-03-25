@@ -3,6 +3,8 @@ import { useParams, Link } from "react-router-dom";
 import { Box, Card, Flex, Grid, Heading, Text, Badge } from "@radix-ui/themes";
 import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { api, Player, PlayerActivityResponse } from "../lib/api";
+import { filterAttacksToLastLocalDays } from "../lib/attackActivityHeatmap";
+import { AttackActivityHeatmap } from "../components/AttackActivityHeatmap";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 
@@ -24,7 +26,7 @@ function bucketAttacksByLocalHour(attacks: { attacked_at: string }[]): number[] 
   return counts;
 }
 
-/** Days from earliest stored attack to now (client clock). API returns up to 7 days of rows. */
+/** Days from earliest attack in the filtered window to now (client clock). */
 function formatAttackHistorySpanDays(attacks: { attacked_at: string }[]): string | null {
   if (attacks.length === 0) return null;
   const first = Math.min(...attacks.map((a) => new Date(a.attacked_at).getTime()));
@@ -184,7 +186,14 @@ export function PlayerDetail() {
       </Card>
       <Card mt="4">
         <Box p="4">
-          <ActivityHourChart attacks={activity?.attacks ?? []} />
+          <ActivityHourChart
+            attacks={filterAttacksToLastLocalDays(activity?.attacks ?? [], 7)}
+          />
+        </Box>
+      </Card>
+      <Card mt="4">
+        <Box p="4">
+          <AttackActivityHeatmap attacks={activity?.attacks ?? []} />
         </Box>
       </Card>
     </Box>
