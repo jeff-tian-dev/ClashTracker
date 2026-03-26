@@ -18,6 +18,8 @@ class TrackedPlayerCreate(BaseModel):
     display_name: str | None = None
     note: str | None = None
     tracking_group: str = "clan_july"
+    # 1 = upper bracket, 2 = lower (Legends April push). Omit for default 1.
+    legends_bracket: int | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -42,10 +44,20 @@ class TrackedPlayerCreate(BaseModel):
             raise ValueError(f"tracking_group must be one of: {sorted(_TRACKING_GROUPS)}")
         return s
 
+    @field_validator("legends_bracket")
+    @classmethod
+    def legends_bracket_valid(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if v not in (1, 2):
+            raise ValueError("legends_bracket must be 1 or 2")
+        return v
+
 
 class TrackedPlayerUpdate(BaseModel):
     display_name: str | None = None
     tracking_group: str | None = None
+    legends_bracket: int | None = None
 
     @field_validator("display_name")
     @classmethod
@@ -67,10 +79,23 @@ class TrackedPlayerUpdate(BaseModel):
             raise ValueError(f"tracking_group must be one of: {sorted(_TRACKING_GROUPS)}")
         return s
 
+    @field_validator("legends_bracket")
+    @classmethod
+    def legends_bracket_if_provided(cls, v: int | None) -> int | None:
+        if v is None:
+            return None
+        if v not in (1, 2):
+            raise ValueError("legends_bracket must be 1 or 2")
+        return v
+
     @model_validator(mode="after")
     def at_least_one_field(self):
-        if self.display_name is None and self.tracking_group is None:
-            raise ValueError("Provide display_name and/or tracking_group")
+        if (
+            self.display_name is None
+            and self.tracking_group is None
+            and self.legends_bracket is None
+        ):
+            raise ValueError("Provide display_name, tracking_group, and/or legends_bracket")
         return self
 
 
@@ -147,6 +172,8 @@ def list_tracked_players(
         row.pop("name", None)
         if not row.get("tracking_group"):
             row["tracking_group"] = "clan_july"
+        lb = row.get("legends_bracket")
+        row["legends_bracket"] = 1 if lb not in (1, 2) else int(lb)
 
     return {"data": rows}
 
@@ -161,11 +188,13 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
         if body.display_name
         else _resolve_display_name_from_players(db, tag)
     )
+    lb = body.legends_bracket if body.legends_bracket is not None else 1
     row = {
         "player_tag": tag,
         "display_name": display_name,
         "note": body.note,
         "tracking_group": body.tracking_group,
+        "legends_bracket": lb,
     }
     try:
         resp = db.table("tracked_players").insert(row).execute()
@@ -203,6 +232,7 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
             extra={"event": "api.db.unexpected", "table": "tracked_players", "player_tag": tag},
         )
         row.setdefault("tracking_group", body.tracking_group)
+        row.setdefault("legends_bracket", lb)
         return row
     out = resp.data[0]
     if isinstance(out, dict):
@@ -211,6 +241,8 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
         out.pop("name", None)
         if not out.get("tracking_group"):
             out["tracking_group"] = body.tracking_group
+        olb = out.get("legends_bracket")
+        out["legends_bracket"] = 1 if olb not in (1, 2) else int(olb)
     return out
 
 
@@ -223,6 +255,8 @@ def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends
         update_payload["display_name"] = body.display_name
     if body.tracking_group is not None:
         update_payload["tracking_group"] = body.tracking_group
+    if body.legends_bracket is not None:
+        update_payload["legends_bracket"] = body.legends_bracket
     logger.debug(
         "patch tracked_players",
         extra={"event": "api.db.write", "table": "tracked_players", "player_tag": norm_tag},
@@ -241,6 +275,8 @@ def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends
         out.pop("name", None)
         if not out.get("tracking_group"):
             out["tracking_group"] = "clan_july"
+        olb = out.get("legends_bracket")
+        out["legends_bracket"] = 1 if olb not in (1, 2) else int(olb)
     return out
 
 

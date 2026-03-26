@@ -30,15 +30,22 @@ function authedRequest<T>(path: string, adminKey: string, init?: RequestInit): P
 function patchTrackedPlayerRequest(
   tag: string,
   key: string,
-  body: { display_name?: string; tracking_group?: "clan_july" | "external" },
+  body: {
+    display_name?: string;
+    tracking_group?: "clan_july" | "external";
+    legends_bracket?: 1 | 2;
+  },
 ) {
-  const payload: Record<string, string> = {};
+  const payload: Record<string, string | number> = {};
   if (body.display_name !== undefined) {
     const d = body.display_name.trim();
     if (d) payload.display_name = d;
   }
   if (body.tracking_group !== undefined) {
     payload.tracking_group = body.tracking_group;
+  }
+  if (body.legends_bracket !== undefined) {
+    payload.legends_bracket = body.legends_bracket;
   }
   return authedRequest<TrackedPlayer>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, {
     method: "PATCH",
@@ -89,7 +96,12 @@ export const api = {
   addTrackedPlayer: (
     player_tag: string,
     key: string,
-    opts?: { note?: string; display_name?: string; tracking_group?: "clan_july" | "external" },
+    opts?: {
+      note?: string;
+      display_name?: string;
+      tracking_group?: "clan_july" | "external";
+      legends_bracket?: 1 | 2;
+    },
   ) =>
     authedRequest<TrackedPlayer>("/api/tracked-players", key, {
       method: "POST",
@@ -100,6 +112,7 @@ export const api = {
           ? { display_name: opts.display_name.trim() }
           : {}),
         ...(opts?.tracking_group != null ? { tracking_group: opts.tracking_group } : {}),
+        ...(opts?.legends_bracket != null ? { legends_bracket: opts.legends_bracket } : {}),
       }),
     }),
   patchTrackedPlayer: patchTrackedPlayerRequest,
@@ -249,6 +262,8 @@ export interface TrackedPlayer {
   note: string | null;
   added_at: string;
   tracking_group: "clan_july" | "external";
+  /** 1 = upper bracket, 2 = lower (Legends April push). */
+  legends_bracket: 1 | 2;
 }
 
 export interface LegendsLeaderboardEntry {
@@ -270,6 +285,8 @@ export interface LegendsLeaderboardEntry {
   is_always_tracked?: boolean;
   /** When pinned: clan_july, external, or null if not in tracked_players. */
   tracking_group?: "clan_july" | "external" | null;
+  /** When pinned: 1 = upper, 2 = lower. Omitted/null if not in tracked_players. */
+  legends_bracket?: 1 | 2 | null;
 }
 
 export interface LegendsLeaderboard {

@@ -11,6 +11,7 @@ import {
   Table,
   Dialog,
   IconButton,
+  Select,
 } from "@radix-ui/themes";
 import { PlusIcon, TrashIcon, Pencil1Icon } from "@radix-ui/react-icons";
 import { api, TrackedPlayer } from "../lib/api";
@@ -35,6 +36,8 @@ type SectionProps = {
   removeTitle: string;
   removeDescription: (r: TrackedPlayer) => string;
   trackingGroup: TrackedPlayerGroup;
+  /** July section: show Bracket column (1/2) for April push Legends. */
+  showBracketColumn: boolean;
   rows: TrackedPlayer[];
   isAdmin: boolean;
   adminKey: string | null;
@@ -52,6 +55,7 @@ function TrackedPlayerTableSection({
   removeTitle,
   removeDescription,
   trackingGroup,
+  showBracketColumn,
   rows,
   isAdmin,
   adminKey,
@@ -64,6 +68,7 @@ function TrackedPlayerTableSection({
   const [newName, setNewName] = useState("");
   const [newNote, setNewNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [bracketBusyTag, setBracketBusyTag] = useState<string | null>(null);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -94,6 +99,20 @@ function TrackedPlayerTableSection({
       onReload();
     } catch (err) {
       setSectionError(err instanceof Error ? err.message : "Failed to remove");
+    }
+  }
+
+  async function handleBracketChange(tag: string, bracket: 1 | 2) {
+    if (!adminKey) return;
+    setBracketBusyTag(tag);
+    setSectionError(null);
+    try {
+      await api.patchTrackedPlayer(tag, adminKey, { legends_bracket: bracket });
+      onReload();
+    } catch (err) {
+      setSectionError(err instanceof Error ? err.message : "Failed to update bracket");
+    } finally {
+      setBracketBusyTag(null);
     }
   }
 
@@ -167,6 +186,7 @@ function TrackedPlayerTableSection({
                 <Table.ColumnHeaderCell>Tag</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
                 <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
+                {showBracketColumn && <Table.ColumnHeaderCell>Bracket</Table.ColumnHeaderCell>}
                 <Table.ColumnHeaderCell>Added</Table.ColumnHeaderCell>
                 {isAdmin && <Table.ColumnHeaderCell />}
               </Table.Row>
@@ -210,6 +230,30 @@ function TrackedPlayerTableSection({
                     </Flex>
                   </Table.Cell>
                   <Table.Cell>{r.note || "—"}</Table.Cell>
+                  {showBracketColumn && (
+                    <Table.Cell
+                      onClick={(ev) => ev.stopPropagation()}
+                      onKeyDown={(ev) => ev.stopPropagation()}
+                    >
+                      {isAdmin ? (
+                        <Select.Root
+                          value={String(r.legends_bracket === 2 ? 2 : 1)}
+                          onValueChange={(v) =>
+                            void handleBracketChange(r.player_tag, v === "2" ? 2 : 1)
+                          }
+                          disabled={bracketBusyTag === r.player_tag}
+                        >
+                          <Select.Trigger placeholder="Bracket" />
+                          <Select.Content position="popper">
+                            <Select.Item value="1">1</Select.Item>
+                            <Select.Item value="2">2</Select.Item>
+                          </Select.Content>
+                        </Select.Root>
+                      ) : (
+                        <Text size="2">{r.legends_bracket === 2 ? 2 : 1}</Text>
+                      )}
+                    </Table.Cell>
+                  )}
                   <Table.Cell>{new Date(r.added_at).toLocaleDateString()}</Table.Cell>
                   {isAdmin && (
                     <Table.Cell>
@@ -276,10 +320,16 @@ export function TrackedPlayers() {
       .then(([clan, ext]) => {
         // Server should filter by query; also filter here so stale APIs that ignore
         // `tracking_group` cannot show the same rows in both sections.
+        const normBracket = (r: TrackedPlayer): TrackedPlayer => ({
+          ...r,
+          legends_bracket: r.legends_bracket === 2 ? 2 : 1,
+        });
         setClanRows(
-          clan.data.filter((r) => (r.tracking_group ?? "clan_july") === "clan_july"),
+          clan.data
+            .filter((r) => (r.tracking_group ?? "clan_july") === "clan_july")
+            .map(normBracket),
         );
-        setExternalRows(ext.data.filter((r) => r.tracking_group === "external"));
+        setExternalRows(ext.data.filter((r) => r.tracking_group === "external").map(normBracket));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -340,6 +390,7 @@ export function TrackedPlayers() {
           `Remove ${displayLabel(r)} (${r.player_tag}) from the clan (July) list? They will only update again if they are in a tracked clan.`
         }
         trackingGroup="clan_july"
+        showBracketColumn
         rows={clanRows}
         isAdmin={isAdmin}
         adminKey={adminKey}
@@ -359,6 +410,7 @@ export function TrackedPlayers() {
           `Remove ${displayLabel(r)} (${r.player_tag}) from the external tracked list?`
         }
         trackingGroup="external"
+        showBracketColumn={false}
         rows={externalRows}
         isAdmin={isAdmin}
         adminKey={adminKey}

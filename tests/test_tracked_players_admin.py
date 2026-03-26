@@ -50,6 +50,7 @@ def test_add_tracked_player_normalizes_tag(client, monkeypatch):
     assert mock.inserted["display_name"] == "Scout One"
     assert mock.inserted["note"] == "scout"
     assert mock.inserted["tracking_group"] == "clan_july"
+    assert mock.inserted["legends_bracket"] == 1
 
 
 def test_add_tracked_player_accepts_legacy_name_json_key(client, monkeypatch):
@@ -80,6 +81,7 @@ def test_add_tracked_player_accepts_legacy_name_json_key(client, monkeypatch):
     assert mock.inserted is not None
     assert mock.inserted["display_name"] == "Legacy Key"
     assert mock.inserted["tracking_group"] == "clan_july"
+    assert mock.inserted["legends_bracket"] == 1
 
 
 def test_add_tracked_player_external_group(client, monkeypatch):
@@ -109,6 +111,7 @@ def test_add_tracked_player_external_group(client, monkeypatch):
     assert r.status_code == 201
     assert mock.inserted is not None
     assert mock.inserted["tracking_group"] == "external"
+    assert mock.inserted["legends_bracket"] == 1
 
 
 def test_remove_tracked_player_success(client, monkeypatch):
@@ -187,6 +190,7 @@ def test_add_tracked_player_resolves_name_from_players_when_omitted(client, monk
     assert db.tracked.inserted["display_name"] == "FromDb"
     assert db.tracked.inserted["note"] == "n1"
     assert db.tracked.inserted["tracking_group"] == "clan_july"
+    assert db.tracked.inserted["legends_bracket"] == 1
 
 
 def test_add_tracked_player_unknown_when_not_in_players_table(client, monkeypatch):
@@ -237,6 +241,7 @@ def test_add_tracked_player_unknown_when_not_in_players_table(client, monkeypatc
     assert db.tracked.inserted is not None
     assert db.tracked.inserted["display_name"] == "Unknown player"
     assert db.tracked.inserted["tracking_group"] == "clan_july"
+    assert db.tracked.inserted["legends_bracket"] == 1
 
 
 def test_list_tracked_players_invalid_tracking_group(client):
@@ -333,6 +338,54 @@ def test_patch_tracked_player_display_name(client, monkeypatch):
     assert r.status_code == 200
     assert r.json()["display_name"] == "New Label"
     assert mock.updated == {"display_name": "New Label"}
+
+
+def test_patch_tracked_player_legends_bracket_only(client, monkeypatch):
+    class UpdateChain:
+        def __init__(self):
+            self.updated: dict | None = None
+
+        def update(self, row):
+            self.updated = row
+            return self
+
+        def eq(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type(
+                "R",
+                (),
+                {
+                    "data": [
+                        {
+                            "player_tag": "#X",
+                            "display_name": "Same",
+                            "note": None,
+                            "added_at": "2026-01-01",
+                            "tracking_group": "clan_july",
+                            "legends_bracket": 2,
+                        }
+                    ]
+                },
+            )()
+
+    mock = UpdateChain()
+
+    class _FakeDb:
+        def table(self, _name):
+            return mock
+
+    monkeypatch.setattr("api.routers.tracked_players.get_db", lambda: _FakeDb())
+
+    r = client.patch(
+        "/api/tracked-players/%23X",
+        headers=AUTH_HEADER,
+        json={"legends_bracket": 2},
+    )
+    assert r.status_code == 200
+    assert r.json()["legends_bracket"] == 2
+    assert mock.updated == {"legends_bracket": 2}
 
 
 def test_patch_tracked_player_not_found(client, monkeypatch):

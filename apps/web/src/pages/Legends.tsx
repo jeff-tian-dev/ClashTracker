@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Box,
   Heading,
@@ -63,27 +63,80 @@ type LegendsDisplayRow = {
   julyMuted: boolean;
 };
 
-function buildLegendsDisplayRows(
+type LegendsDisplayBlock = {
+  heading: string | null;
+  rows: LegendsDisplayRow[];
+};
+
+function buildLegendsDisplayBlocks(
   entries: LegendsLeaderboardEntry[],
   julyOnly: boolean,
-): LegendsDisplayRow[] {
+  aprilPush: boolean,
+): LegendsDisplayBlock[] {
   if (!julyOnly) {
-    return entries.map((entry) => ({
-      entry,
-      rankLabel: String(entry.rank),
-      julyMuted: false,
-    }));
+    return [
+      {
+        heading: null,
+        rows: entries.map((entry) => ({
+          entry,
+          rankLabel: String(entry.rank),
+          julyMuted: false,
+        })),
+      },
+    ];
   }
-  const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsTrophyOrder);
+
+  if (!aprilPush) {
+    const rows: LegendsDisplayRow[] = [];
+    const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsTrophyOrder);
+    const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsTrophyOrder);
+    clanJuly.forEach((entry, i) => {
+      rows.push({ entry, rankLabel: String(i + 1), julyMuted: false });
+    });
+    other.forEach((entry) => {
+      rows.push({ entry, rankLabel: "—", julyMuted: true });
+    });
+    return [{ heading: null, rows }];
+  }
+
+  const primary = entries.filter(isClanJulyPrimary);
+  const upper = primary
+    .filter((e) => (e.legends_bracket ?? 1) === 1)
+    .sort(compareLegendsTrophyOrder);
+  const lower = primary
+    .filter((e) => (e.legends_bracket ?? 1) === 2)
+    .sort(compareLegendsTrophyOrder);
   const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsTrophyOrder);
-  const out: LegendsDisplayRow[] = [];
-  clanJuly.forEach((entry, i) => {
-    out.push({ entry, rankLabel: String(i + 1), julyMuted: false });
-  });
-  other.forEach((entry) => {
-    out.push({ entry, rankLabel: "—", julyMuted: true });
-  });
-  return out;
+
+  const blocks: LegendsDisplayBlock[] = [
+    {
+      heading: "Upper bracket",
+      rows: upper.map((entry, i) => ({
+        entry,
+        rankLabel: String(i + 1),
+        julyMuted: false,
+      })),
+    },
+    {
+      heading: "Lower bracket",
+      rows: lower.map((entry, i) => ({
+        entry,
+        rankLabel: String(i + 1),
+        julyMuted: false,
+      })),
+    },
+  ];
+  if (other.length > 0) {
+    blocks.push({
+      heading: null,
+      rows: other.map((entry) => ({
+        entry,
+        rankLabel: "—",
+        julyMuted: true,
+      })),
+    });
+  }
+  return blocks;
 }
 
 function tieBreakWinner(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry): LegendsLeaderboardEntry {
@@ -193,6 +246,177 @@ function StatHighlight({
   );
 }
 
+function LegendsLeaderboardTable({
+  displayBlocks,
+  isAdmin,
+  openDetail,
+  handleDeletePlayer,
+}: {
+  displayBlocks: LegendsDisplayBlock[];
+  isAdmin: boolean;
+  openDetail: (tag: string) => void;
+  handleDeletePlayer: (tag: string) => void;
+}) {
+  const colSpan = isAdmin ? 8 : 7;
+  return (
+    <TableScrollArea>
+      <Table.Root variant="surface" className="min-w-[700px]">
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Attack</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Defense</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Net</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Initial</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Final</Table.ColumnHeaderCell>
+            {isAdmin && <Table.ColumnHeaderCell />}
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {displayBlocks.map((block, blockIdx) => (
+            <Fragment key={block.heading ?? `block-${blockIdx}`}>
+              {block.heading ? (
+                <Table.Row>
+                  <Table.Cell colSpan={colSpan}>
+                    <Heading size="3">{block.heading}</Heading>
+                  </Table.Cell>
+                </Table.Row>
+              ) : null}
+              {block.rows.length === 0 && block.heading ? (
+                <Table.Row>
+                  <Table.Cell colSpan={colSpan}>
+                    <Text size="2" color="gray">
+                      No players in this bracket.
+                    </Text>
+                  </Table.Cell>
+                </Table.Row>
+              ) : null}
+              {block.rows.map(({ entry: e, rankLabel, julyMuted }) => {
+                const hasBattles = e.has_battles !== false;
+                return (
+                  <Table.Row
+                    key={e.player_tag}
+                    className={
+                      "cursor-pointer transition-colors hover:bg-[var(--gray-3)] [&_td]:!py-3 md:[&_td]:!py-2" +
+                      (julyMuted ? " opacity-[0.55]" : "")
+                    }
+                    onClick={() => openDetail(e.player_tag)}
+                  >
+                    <Table.Cell>
+                      <Text weight="medium" color={julyMuted ? "gray" : undefined}>
+                        {rankLabel}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Text
+                        className={
+                          julyMuted
+                            ? "font-medium text-[var(--gray-11)]"
+                            : "text-[var(--accent-11)] font-medium"
+                        }
+                      >
+                        {e.name}
+                      </Text>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {hasBattles ? (
+                        <Text color="green">+{e.attack_total}</Text>
+                      ) : (
+                        <Text size="2" color="gray">
+                          —
+                        </Text>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {hasBattles ? (
+                        <Text color="red">−{e.defense_total}</Text>
+                      ) : (
+                        <Text size="2" color="gray">
+                          —
+                        </Text>
+                      )}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge
+                        size="1"
+                        color={
+                          hasBattles ? (e.net > 0 ? "green" : e.net < 0 ? "red" : "gray") : "gray"
+                        }
+                        variant="soft"
+                      >
+                        {hasBattles ? (
+                          <>
+                            {e.net > 0 ? "+" : ""}
+                            {e.net}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>{e.initial_trophies.toLocaleString()}</Table.Cell>
+                    <Table.Cell>
+                      <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
+                    </Table.Cell>
+                    {isAdmin && (
+                      <Table.Cell
+                        onClick={(ev) => ev.stopPropagation()}
+                        onKeyDown={(ev) => ev.stopPropagation()}
+                      >
+                        <Dialog.Root>
+                          <Dialog.Trigger>
+                            <IconButton
+                              type="button"
+                              variant="ghost"
+                              color="red"
+                              size={{ initial: "2", md: "1" }}
+                              aria-label="Delete player"
+                              onClick={(ev) => ev.stopPropagation()}
+                            >
+                              <TrashIcon />
+                            </IconButton>
+                          </Dialog.Trigger>
+                          <Dialog.Content className={DIALOG_CONTENT_SM}>
+                            <Dialog.Title>Delete player</Dialog.Title>
+                            <Dialog.Description>
+                              Remove {e.name} ({e.player_tag}) from the dashboard? This deletes their row
+                              and any Tracked Players pin, same as on the Players tab. They can show up
+                              again after sync if they are still in a tracked clan.
+                            </Dialog.Description>
+                            <Flex
+                              gap="3"
+                              mt="4"
+                              justify="end"
+                              direction={{ initial: "column", sm: "row" }}
+                              wrap="wrap"
+                            >
+                              <Dialog.Close>
+                                <Button variant="soft" color="gray">
+                                  Cancel
+                                </Button>
+                              </Dialog.Close>
+                              <Dialog.Close>
+                                <Button color="red" onClick={() => handleDeletePlayer(e.player_tag)}>
+                                  Delete
+                                </Button>
+                              </Dialog.Close>
+                            </Flex>
+                          </Dialog.Content>
+                        </Dialog.Root>
+                      </Table.Cell>
+                    )}
+                  </Table.Row>
+                );
+              })}
+            </Fragment>
+          ))}
+        </Table.Body>
+      </Table.Root>
+    </TableScrollArea>
+  );
+}
+
 function BattleTable({ battles, type }: { battles: LegendsBattle[]; type: "attack" | "defense" }) {
   if (battles.length === 0) {
     return <Text size="2" color="gray">No {type === "attack" ? "attacks" : "defenses"} yet.</Text>;
@@ -250,10 +474,11 @@ export function Legends() {
   const [availableLegendsDays, setAvailableLegendsDays] = useState<string[]>([]);
   const [modalSelectedDay, setModalSelectedDay] = useState("");
   const [julyOnly, setJulyOnly] = useState(false);
+  const [aprilPush, setAprilPush] = useState(false);
 
-  const displayRows = useMemo(
-    () => buildLegendsDisplayRows(entries, julyOnly),
-    [entries, julyOnly],
+  const displayBlocks = useMemo(
+    () => buildLegendsDisplayBlocks(entries, julyOnly, aprilPush),
+    [entries, julyOnly, aprilPush],
   );
 
   const dayLeaders = useMemo(
@@ -344,15 +569,42 @@ export function Legends() {
             </Text>
           )}
         </Flex>
-        <label
-          htmlFor="legends-july-only"
-          className="inline-flex items-center gap-2 cursor-pointer touch-manipulation py-1"
-        >
-          <Text size="2" weight="medium">
-            July only
-          </Text>
-          <Switch id="legends-july-only" size="2" checked={julyOnly} onCheckedChange={setJulyOnly} />
-        </label>
+        <Flex align="center" gap="4" wrap="wrap">
+          <label
+            htmlFor="legends-july-only"
+            className="inline-flex items-center gap-2 cursor-pointer touch-manipulation py-1"
+          >
+            <Text size="2" weight="medium">
+              July only
+            </Text>
+            <Switch
+              id="legends-july-only"
+              size="2"
+              checked={julyOnly}
+              onCheckedChange={(v) => {
+                if (!v) setAprilPush(false);
+                setJulyOnly(v);
+              }}
+            />
+          </label>
+          <label
+            htmlFor="legends-april-push"
+            className="inline-flex items-center gap-2 cursor-pointer touch-manipulation py-1"
+          >
+            <Text size="2" weight="medium">
+              April push
+            </Text>
+            <Switch
+              id="legends-april-push"
+              size="2"
+              checked={aprilPush}
+              onCheckedChange={(v) => {
+                if (v) setJulyOnly(true);
+                setAprilPush(v);
+              }}
+            />
+          </label>
+        </Flex>
       </Flex>
 
       {!loading && !loadError && entries.length > 0 ? (
@@ -444,8 +696,18 @@ export function Legends() {
 
       {julyOnly && (
         <Text size="2" color="gray" mb="3" style={{ display: "block", maxWidth: 720 }}>
-          July clan roster first (by final trophies). External tracked players and everyone else appear
-          below, muted, with “—” in the rank column.
+          {aprilPush ? (
+            <>
+              April push: leaderboard splits into Upper bracket (group 1) and Lower bracket (group 2) by
+              final trophies within each. Assign bracket on Tracked Players (July). Everyone else stays
+              below, muted, with “—” in the rank column.
+            </>
+          ) : (
+            <>
+              July clan roster first (by final trophies). External tracked players and everyone else appear
+              below, muted, with “—” in the rank column.
+            </>
+          )}
         </Text>
       )}
 
@@ -461,137 +723,12 @@ export function Legends() {
       ) : entries.length === 0 ? (
         <EmptyState message="No players in Legends League in the roster yet." />
       ) : (
-        <TableScrollArea>
-          <Table.Root variant="surface" className="min-w-[700px]">
-            <Table.Header>
-              <Table.Row>
-                <Table.ColumnHeaderCell>#</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Attack</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Defense</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Net</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Initial</Table.ColumnHeaderCell>
-                <Table.ColumnHeaderCell>Final</Table.ColumnHeaderCell>
-                {isAdmin && <Table.ColumnHeaderCell />}
-              </Table.Row>
-            </Table.Header>
-            <Table.Body>
-              {displayRows.map(({ entry: e, rankLabel, julyMuted }) => {
-                const hasBattles = e.has_battles !== false;
-                return (
-              <Table.Row
-                key={e.player_tag}
-                className={
-                  "cursor-pointer transition-colors hover:bg-[var(--gray-3)] [&_td]:!py-3 md:[&_td]:!py-2" +
-                  (julyMuted ? " opacity-[0.55]" : "")
-                }
-                onClick={() => openDetail(e.player_tag)}
-              >
-                <Table.Cell>
-                  <Text weight="medium" color={julyMuted ? "gray" : undefined}>
-                    {rankLabel}
-                  </Text>
-                </Table.Cell>
-                <Table.Cell>
-                  <Text
-                    className={
-                      julyMuted ? "font-medium text-[var(--gray-11)]" : "text-[var(--accent-11)] font-medium"
-                    }
-                  >
-                    {e.name}
-                  </Text>
-                </Table.Cell>
-                <Table.Cell>
-                  {hasBattles ? (
-                    <Text color="green">+{e.attack_total}</Text>
-                  ) : (
-                    <Text size="2" color="gray">
-                      —
-                    </Text>
-                  )}
-                </Table.Cell>
-                <Table.Cell>
-                  {hasBattles ? (
-                    <Text color="red">−{e.defense_total}</Text>
-                  ) : (
-                    <Text size="2" color="gray">
-                      —
-                    </Text>
-                  )}
-                </Table.Cell>
-                <Table.Cell>
-                  <Badge
-                    size="1"
-                    color={hasBattles ? (e.net > 0 ? "green" : e.net < 0 ? "red" : "gray") : "gray"}
-                    variant="soft"
-                  >
-                    {hasBattles ? (
-                      <>
-                        {e.net > 0 ? "+" : ""}
-                        {e.net}
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </Badge>
-                </Table.Cell>
-                <Table.Cell>{e.initial_trophies.toLocaleString()}</Table.Cell>
-                <Table.Cell>
-                  <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
-                </Table.Cell>
-                {isAdmin && (
-                  <Table.Cell
-                    onClick={(ev) => ev.stopPropagation()}
-                    onKeyDown={(ev) => ev.stopPropagation()}
-                  >
-                    <Dialog.Root>
-                      <Dialog.Trigger>
-                        <IconButton
-                          type="button"
-                          variant="ghost"
-                          color="red"
-                          size={{ initial: "2", md: "1" }}
-                          aria-label="Delete player"
-                          onClick={(ev) => ev.stopPropagation()}
-                        >
-                          <TrashIcon />
-                        </IconButton>
-                      </Dialog.Trigger>
-                      <Dialog.Content className={DIALOG_CONTENT_SM}>
-                        <Dialog.Title>Delete player</Dialog.Title>
-                        <Dialog.Description>
-                          Remove {e.name} ({e.player_tag}) from the dashboard? This deletes their row
-                          and any Tracked Players pin, same as on the Players tab. They can show up
-                          again after sync if they are still in a tracked clan.
-                        </Dialog.Description>
-                        <Flex
-                          gap="3"
-                          mt="4"
-                          justify="end"
-                          direction={{ initial: "column", sm: "row" }}
-                          wrap="wrap"
-                        >
-                          <Dialog.Close>
-                            <Button variant="soft" color="gray">
-                              Cancel
-                            </Button>
-                          </Dialog.Close>
-                          <Dialog.Close>
-                            <Button color="red" onClick={() => handleDeletePlayer(e.player_tag)}>
-                              Delete
-                            </Button>
-                          </Dialog.Close>
-                        </Flex>
-                      </Dialog.Content>
-                    </Dialog.Root>
-                  </Table.Cell>
-                )}
-              </Table.Row>
-            );
-            })}
-            </Table.Body>
-          </Table.Root>
-        </TableScrollArea>
+        <LegendsLeaderboardTable
+          displayBlocks={displayBlocks}
+          isAdmin={isAdmin}
+          openDetail={openDetail}
+          handleDeletePlayer={handleDeletePlayer}
+        />
       )}
 
       <Dialog.Root

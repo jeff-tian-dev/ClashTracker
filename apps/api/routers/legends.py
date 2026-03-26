@@ -91,11 +91,17 @@ def legends_leaderboard():
     if not agg:
         return {"data": [], "legends_day": legends_day}
 
-    tracked_rows = db.table("tracked_players").select("player_tag,tracking_group").execute().data or []
+    tracked_rows = (
+        db.table("tracked_players").select("player_tag,tracking_group,legends_bracket").execute().data or []
+    )
     always_tracked_tags = {row["player_tag"] for row in tracked_rows}
     tag_to_tracking_group = {
         row["player_tag"]: (row.get("tracking_group") or "clan_july") for row in tracked_rows
     }
+    tag_to_legends_bracket: dict[str, int] = {}
+    for row in tracked_rows:
+        lb = row.get("legends_bracket")
+        tag_to_legends_bracket[row["player_tag"]] = 1 if lb not in (1, 2) else int(lb)
 
     player_tags = list(agg.keys())
     player_map: dict = {}
@@ -129,6 +135,7 @@ def legends_leaderboard():
             "has_battles": tag in tags_with_battles,
             "is_always_tracked": tag in always_tracked_tags,
             "tracking_group": tag_to_tracking_group.get(tag) if tag in always_tracked_tags else None,
+            "legends_bracket": tag_to_legends_bracket.get(tag) if tag in always_tracked_tags else None,
         })
 
     rows.sort(key=lambda r: (-r["final_trophies"], -r["net"]))
