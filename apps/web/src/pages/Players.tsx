@@ -1,5 +1,4 @@
-import { useEffect, useState, forwardRef } from "react";
-import type { ComponentPropsWithoutRef } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton, Badge, Text } from "@radix-ui/themes";
 import { BookmarkIcon, MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
@@ -11,27 +10,7 @@ import { Pagination } from "../components/Pagination";
 import { TableScrollArea } from "../components/TableScrollArea";
 import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 import { formatLeftAgo } from "../lib/formatRelativeLeft";
-
-/** Radix Icons has no shield; matches 15×15 filled icon style (e.g. TrashIcon). */
-const ShieldIcon = forwardRef<SVGSVGElement, ComponentPropsWithoutRef<"svg">>((props, ref) => (
-  <svg
-    width="15"
-    height="15"
-    viewBox="0 0 15 15"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-    ref={ref}
-    {...props}
-  >
-    <path
-      fill="currentColor"
-      fillRule="evenodd"
-      clipRule="evenodd"
-      d="M7.5 1L11.75 3.25V7.5C11.75 10.1 9.85 12.35 7.5 13C5.15 12.35 3.25 10.1 3.25 7.5V3.25L7.5 1Z"
-    />
-  </svg>
-));
-ShieldIcon.displayName = "ShieldIcon";
+import { ShieldIcon } from "../components/ShieldIcon";
 
 export function Players() {
   const [searchParams, setSearchParams] = useSearchParams();

@@ -13,9 +13,10 @@ import {
   IconButton,
   Select,
 } from "@radix-ui/themes";
-import { PlusIcon, TrashIcon, Pencil1Icon } from "@radix-ui/react-icons";
+import { PlusIcon, TrashIcon, Pencil1Icon, BookmarkIcon } from "@radix-ui/react-icons";
 import { api, TrackedPlayer } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
+import { ShieldIcon } from "../components/ShieldIcon";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { TableScrollArea } from "../components/TableScrollArea";
@@ -45,6 +46,8 @@ type SectionProps = {
   onEdit: (r: TrackedPlayer) => void;
   sectionError: string | null;
   setSectionError: (msg: string | null) => void;
+  /** Admin: show bookmark (→ external) on July rows or shield (→ July) on external rows. */
+  crossListMove?: "to_external" | "to_clan_july";
 };
 
 function TrackedPlayerTableSection({
@@ -63,12 +66,14 @@ function TrackedPlayerTableSection({
   onEdit,
   sectionError,
   setSectionError,
+  crossListMove,
 }: SectionProps) {
   const [newTag, setNewTag] = useState("");
   const [newName, setNewName] = useState("");
   const [newNote, setNewNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bracketBusyTag, setBracketBusyTag] = useState<string | null>(null);
+  const [pendingMoveTag, setPendingMoveTag] = useState<string | null>(null);
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
@@ -113,6 +118,28 @@ function TrackedPlayerTableSection({
       setSectionError(err instanceof Error ? err.message : "Failed to update bracket");
     } finally {
       setBracketBusyTag(null);
+    }
+  }
+
+  async function handleCrossListMove(tag: string, target: "clan_july" | "external") {
+    if (!adminKey) return;
+    setPendingMoveTag(tag);
+    setSectionError(null);
+    try {
+      await api.patchTrackedPlayer(tag, adminKey, { tracking_group: target });
+      onReload();
+    } catch (err) {
+      console.error("Failed to update tracked player", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("409")) {
+        window.alert(
+          "Could not add this player (already on a tracked list). Try again or refresh the page.",
+        );
+      } else {
+        window.alert("Failed to update tracked list for this player.");
+      }
+    } finally {
+      setPendingMoveTag(null);
     }
   }
 
@@ -257,35 +284,65 @@ function TrackedPlayerTableSection({
                   <Table.Cell>{new Date(r.added_at).toLocaleDateString()}</Table.Cell>
                   {isAdmin && (
                     <Table.Cell>
-                      <Dialog.Root>
-                        <Dialog.Trigger>
-                          <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
-                            <TrashIcon />
-                          </IconButton>
-                        </Dialog.Trigger>
-                        <Dialog.Content className={DIALOG_CONTENT_SM}>
-                          <Dialog.Title>{removeTitle}</Dialog.Title>
-                          <Dialog.Description>{removeDescription(r)}</Dialog.Description>
-                          <Flex
-                            gap="3"
-                            mt="4"
-                            justify="end"
-                            direction={{ initial: "column", sm: "row" }}
-                            wrap="wrap"
+                      <Flex gap="1" align="center" wrap="nowrap">
+                        {crossListMove === "to_external" && (
+                          <IconButton
+                            type="button"
+                            variant="ghost"
+                            color="gray"
+                            size={{ initial: "2", md: "1" }}
+                            disabled={pendingMoveTag === r.player_tag}
+                            aria-label="Add or move to external tracked list"
+                            title="Add or move to external tracked list"
+                            onClick={() => void handleCrossListMove(r.player_tag, "external")}
                           >
-                            <Dialog.Close>
-                              <Button variant="soft" color="gray">
-                                Cancel
-                              </Button>
-                            </Dialog.Close>
-                            <Dialog.Close>
-                              <Button color="red" onClick={() => handleRemove(r.player_tag)}>
-                                Remove
-                              </Button>
-                            </Dialog.Close>
-                          </Flex>
-                        </Dialog.Content>
-                      </Dialog.Root>
+                            <BookmarkIcon />
+                          </IconButton>
+                        )}
+                        {crossListMove === "to_clan_july" && (
+                          <IconButton
+                            type="button"
+                            variant="ghost"
+                            color="gray"
+                            size={{ initial: "2", md: "1" }}
+                            disabled={pendingMoveTag === r.player_tag}
+                            aria-label="Add or move to Clan (July) tracked list"
+                            title="Add or move to Clan (July) tracked list"
+                            onClick={() => void handleCrossListMove(r.player_tag, "clan_july")}
+                          >
+                            <ShieldIcon />
+                          </IconButton>
+                        )}
+                        <Dialog.Root>
+                          <Dialog.Trigger>
+                            <IconButton variant="ghost" color="red" size={{ initial: "2", md: "1" }}>
+                              <TrashIcon />
+                            </IconButton>
+                          </Dialog.Trigger>
+                          <Dialog.Content className={DIALOG_CONTENT_SM}>
+                            <Dialog.Title>{removeTitle}</Dialog.Title>
+                            <Dialog.Description>{removeDescription(r)}</Dialog.Description>
+                            <Flex
+                              gap="3"
+                              mt="4"
+                              justify="end"
+                              direction={{ initial: "column", sm: "row" }}
+                              wrap="wrap"
+                            >
+                              <Dialog.Close>
+                                <Button variant="soft" color="gray">
+                                  Cancel
+                                </Button>
+                              </Dialog.Close>
+                              <Dialog.Close>
+                                <Button color="red" onClick={() => handleRemove(r.player_tag)}>
+                                  Remove
+                                </Button>
+                              </Dialog.Close>
+                            </Flex>
+                          </Dialog.Content>
+                        </Dialog.Root>
+                      </Flex>
                     </Table.Cell>
                   )}
                 </Table.Row>
@@ -396,6 +453,7 @@ export function TrackedPlayers() {
         onEdit={openEdit}
         sectionError={clanSectionError}
         setSectionError={setClanSectionError}
+        crossListMove="to_external"
       />
 
       <TrackedPlayerTableSection
@@ -416,6 +474,7 @@ export function TrackedPlayers() {
         onEdit={openEdit}
         sectionError={externalSectionError}
         setSectionError={setExternalSectionError}
+        crossListMove="to_clan_july"
       />
         </>
       )}
