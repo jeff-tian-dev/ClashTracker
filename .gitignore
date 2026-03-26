@@ -1,6 +1,8 @@
 .env.local
 .env
 .env.gh-pages
+# Tracked separately from root .env; keep local only (Vite / API URL).
+apps/web/.env
 *.key
 node_modules/
 __pycache__/
@@ -16,3 +18,10 @@ venv/
 # Runtime logs (JSON lines; optional file logging via LOG_TO_FILE)
 logs/*
 !logs/.gitkeep
+
+# Reference dump / local scratch (not app source)
+coc-api-docs.json
+pull_player_battlelog_test.py
+
+# Optional FastAPI-hosted SPA: copy `apps/web/dist` here on the server; do not commit builds
+/static/
