@@ -694,23 +694,6 @@ export function Legends() {
         </Flex>
       ) : null}
 
-      {julyOnly && (
-        <Text size="2" color="gray" mb="3" style={{ display: "block", maxWidth: 720 }}>
-          {aprilPush ? (
-            <>
-              April push: leaderboard splits into Upper bracket (group 1) and Lower bracket (group 2) by
-              final trophies within each. Assign bracket on Tracked Players (July). Everyone else stays
-              below, muted, with “—” in the rank column.
-            </>
-          ) : (
-            <>
-              July clan roster first (by final trophies). External tracked players and everyone else appear
-              below, muted, with “—” in the rank column.
-            </>
-          )}
-        </Text>
-      )}
-
       {loading ? (
         <LoadingSpinner />
       ) : loadError ? (
