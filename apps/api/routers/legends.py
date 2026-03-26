@@ -23,6 +23,41 @@ def _current_legends_day() -> date:
     return now.date()
 
 
+def _legends_empty_totals() -> dict:
+    return {
+        "attack_total": 0,
+        "defense_total": 0,
+        "attack_battle_count": 0,
+        "defense_battle_count": 0,
+    }
+
+
+def _aggregate_legends_day_battles(
+    battles: list[dict],
+    legends_roster_tags: list[str],
+) -> tuple[dict[str, dict], set[str]]:
+    """Per-player trophy totals and battle counts for one legends day (plus roster placeholders)."""
+    tags_with_battles: set[str] = set()
+    agg: dict[str, dict] = {}
+    for b in battles:
+        tag = b["player_tag"]
+        tags_with_battles.add(tag)
+        if tag not in agg:
+            agg[tag] = _legends_empty_totals()
+        if b["is_attack"]:
+            agg[tag]["attack_total"] += b["trophies"]
+            agg[tag]["attack_battle_count"] += 1
+        else:
+            agg[tag]["defense_total"] += b["trophies"]
+            agg[tag]["defense_battle_count"] += 1
+
+    for tag in legends_roster_tags:
+        if tag not in agg:
+            agg[tag] = _legends_empty_totals()
+
+    return agg, tags_with_battles
+
+
 @router.get("/legends")
 def legends_leaderboard():
     db = get_db()
@@ -43,21 +78,7 @@ def legends_leaderboard():
     )
     battles = resp.data or []
 
-    tags_with_battles: set[str] = set()
-    agg: dict[str, dict] = {}
-    for b in battles:
-        tag = b["player_tag"]
-        tags_with_battles.add(tag)
-        if tag not in agg:
-            agg[tag] = {"attack_total": 0, "defense_total": 0}
-        if b["is_attack"]:
-            agg[tag]["attack_total"] += b["trophies"]
-        else:
-            agg[tag]["defense_total"] += b["trophies"]
-
-    for tag in legends_roster_tags:
-        if tag not in agg:
-            agg[tag] = {"attack_total": 0, "defense_total": 0}
+    agg, tags_with_battles = _aggregate_legends_day_battles(battles, legends_roster_tags)
 
     if not legends_roster_tags and battles:
         logger.warning(
@@ -100,6 +121,8 @@ def legends_leaderboard():
             "name": player.get("name", tag),
             "attack_total": totals["attack_total"],
             "defense_total": totals["defense_total"],
+            "attack_battle_count": totals["attack_battle_count"],
+            "defense_battle_count": totals["defense_battle_count"],
             "net": net,
             "initial_trophies": current_trophies - net,
             "final_trophies": current_trophies,

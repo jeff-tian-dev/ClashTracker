@@ -257,6 +257,10 @@ export interface LegendsLeaderboardEntry {
   name: string;
   attack_total: number;
   defense_total: number;
+  /** Count of attack battle rows this legends day (for per-slot / leader stats). */
+  attack_battle_count: number;
+  /** Count of defense battle rows this legends day. */
+  defense_battle_count: number;
   net: number;
   initial_trophies: number;
   final_trophies: number;

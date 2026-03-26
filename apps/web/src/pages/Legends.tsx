@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Box,
   Heading,
@@ -86,6 +86,113 @@ function buildLegendsDisplayRows(
   return out;
 }
 
+function tieBreakWinner(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry): LegendsLeaderboardEntry {
+  if (a.final_trophies !== b.final_trophies) {
+    return a.final_trophies > b.final_trophies ? a : b;
+  }
+  return a.name.localeCompare(b.name) <= 0 ? a : b;
+}
+
+function pickMaxMetric(
+  pool: LegendsLeaderboardEntry[],
+  metric: (e: LegendsLeaderboardEntry) => number,
+): LegendsLeaderboardEntry | null {
+  if (pool.length === 0) return null;
+  return pool.reduce((best, e) => {
+    const me = metric(e);
+    const mb = metric(best);
+    if (me !== mb) return me > mb ? e : best;
+    return tieBreakWinner(e, best);
+  });
+}
+
+function pickMinMetric(
+  pool: LegendsLeaderboardEntry[],
+  metric: (e: LegendsLeaderboardEntry) => number,
+): LegendsLeaderboardEntry | null {
+  if (pool.length === 0) return null;
+  return pool.reduce((best, e) => {
+    const me = metric(e);
+    const mb = metric(best);
+    if (me !== mb) return me < mb ? e : best;
+    return tieBreakWinner(e, best);
+  });
+}
+
+type LegendsDayLeaders = {
+  bestAttacks: LegendsLeaderboardEntry | null;
+  highestNet: LegendsLeaderboardEntry | null;
+  bestDefense: LegendsLeaderboardEntry | null;
+  bestBase: LegendsLeaderboardEntry | null;
+  bestBaseAvg: number | null;
+};
+
+function computeLegendsDayLeaders(
+  entries: LegendsLeaderboardEntry[],
+  julyOnly: boolean,
+): LegendsDayLeaders {
+  const candidates = julyOnly ? entries.filter(isClanJulyPrimary) : entries;
+  const hasBattles = (e: LegendsLeaderboardEntry) => e.has_battles !== false;
+
+  const bestAttacks = pickMaxMetric(
+    candidates.filter((e) => hasBattles(e) && e.attack_battle_count > 0),
+    (e) => e.attack_total,
+  );
+  const highestNet = pickMaxMetric(candidates.filter(hasBattles), (e) => e.net);
+
+  const withDefense = candidates.filter((e) => e.defense_battle_count > 0);
+  const bestDefense = pickMinMetric(withDefense, (e) => e.defense_total);
+  const bestBase = pickMinMetric(withDefense, (e) => e.defense_total / e.defense_battle_count);
+  const bestBaseAvg = bestBase ? bestBase.defense_total / bestBase.defense_battle_count : null;
+
+  return { bestAttacks, highestNet, bestDefense, bestBase, bestBaseAvg };
+}
+
+function StatHighlight({
+  label,
+  name,
+  value,
+  onOpen,
+}: {
+  label: string;
+  name: string;
+  value: ReactNode;
+  onOpen?: () => void;
+}) {
+  const interactive = Boolean(onOpen);
+  return (
+    <Box
+      style={{ minWidth: 140, flex: "1 1 140px" }}
+      className={
+        interactive
+          ? "cursor-pointer rounded-[var(--radius-2)] p-2 -m-2 transition-colors hover:bg-[var(--gray-3)]"
+          : undefined
+      }
+      onClick={onOpen}
+      onKeyDown={
+        interactive
+          ? (ev) => {
+              if (ev.key === "Enter" || ev.key === " ") {
+                ev.preventDefault();
+                onOpen?.();
+              }
+            }
+          : undefined
+      }
+      tabIndex={interactive ? 0 : undefined}
+      role={interactive ? "button" : undefined}
+    >
+      <Text size="1" color="gray" weight="medium" mb="1" as="div">
+        {label}
+      </Text>
+      <Text size="2" weight="bold" className="text-[var(--accent-11)]" as="div">
+        {name}
+      </Text>
+      <Box mt="1">{value}</Box>
+    </Box>
+  );
+}
+
 function BattleTable({ battles, type }: { battles: LegendsBattle[]; type: "attack" | "defense" }) {
   if (battles.length === 0) {
     return <Text size="2" color="gray">No {type === "attack" ? "attacks" : "defenses"} yet.</Text>;
@@ -146,6 +253,11 @@ export function Legends() {
 
   const displayRows = useMemo(
     () => buildLegendsDisplayRows(entries, julyOnly),
+    [entries, julyOnly],
+  );
+
+  const dayLeaders = useMemo(
+    () => computeLegendsDayLeaders(entries, julyOnly),
     [entries, julyOnly],
   );
 
@@ -242,6 +354,94 @@ export function Legends() {
           <Switch id="legends-july-only" size="2" checked={julyOnly} onCheckedChange={setJulyOnly} />
         </label>
       </Flex>
+
+      {!loading && !loadError && entries.length > 0 ? (
+        <Flex
+          wrap="wrap"
+          gap="4"
+          mb="4"
+          className="rounded-[var(--radius-3)] border border-[var(--gray-6)] bg-[var(--color-surface)] p-3 md:p-4"
+        >
+          <StatHighlight
+            label="Best attacks"
+            name={dayLeaders.bestAttacks?.name ?? "—"}
+            value={
+              dayLeaders.bestAttacks != null ? (
+                <Text color="green" weight="medium">
+                  +{dayLeaders.bestAttacks.attack_total.toLocaleString()}
+                </Text>
+              ) : (
+                <Text color="gray">—</Text>
+              )
+            }
+            onOpen={
+              dayLeaders.bestAttacks ? () => void openDetail(dayLeaders.bestAttacks!.player_tag) : undefined
+            }
+          />
+          <StatHighlight
+            label="Highest net"
+            name={dayLeaders.highestNet?.name ?? "—"}
+            value={
+              dayLeaders.highestNet != null ? (
+                <Badge
+                  size="1"
+                  color={
+                    dayLeaders.highestNet.net > 0
+                      ? "green"
+                      : dayLeaders.highestNet.net < 0
+                        ? "red"
+                        : "gray"
+                  }
+                  variant="soft"
+                >
+                  {dayLeaders.highestNet.net > 0 ? "+" : ""}
+                  {dayLeaders.highestNet.net.toLocaleString()}
+                </Badge>
+              ) : (
+                <Text color="gray">—</Text>
+              )
+            }
+            onOpen={
+              dayLeaders.highestNet ? () => void openDetail(dayLeaders.highestNet!.player_tag) : undefined
+            }
+          />
+          <StatHighlight
+            label="Best defense"
+            name={dayLeaders.bestDefense?.name ?? "—"}
+            value={
+              dayLeaders.bestDefense != null ? (
+                <Text color="red" weight="medium">
+                  −{dayLeaders.bestDefense.defense_total.toLocaleString()} lost
+                </Text>
+              ) : (
+                <Text color="gray">—</Text>
+              )
+            }
+            onOpen={
+              dayLeaders.bestDefense ? () => void openDetail(dayLeaders.bestDefense!.player_tag) : undefined
+            }
+          />
+          <StatHighlight
+            label="Best base"
+            name={dayLeaders.bestBase?.name ?? "—"}
+            value={
+              dayLeaders.bestBaseAvg != null ? (
+                <Text color="red" weight="medium">
+                  {dayLeaders.bestBaseAvg.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{" "}
+                  lost / defense
+                </Text>
+              ) : (
+                <Text color="gray">—</Text>
+              )
+            }
+            onOpen={dayLeaders.bestBase ? () => void openDetail(dayLeaders.bestBase!.player_tag) : undefined}
+          />
+        </Flex>
+      ) : null}
+
       {julyOnly && (
         <Text size="2" color="gray" mb="3" style={{ display: "block", maxWidth: 720 }}>
           July clan roster first (by final trophies). External tracked players and everyone else appear
