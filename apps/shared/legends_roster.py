@@ -1,6 +1,8 @@
-"""Legends League daily roster: who appears on the leaderboard and is ingested for battle logs."""
+"""Legends League daily roster and shared calendar helpers."""
 
 from __future__ import annotations
+
+from datetime import date, datetime, time, timedelta, timezone
 
 # Canonical CoC main-village league label (source of truth for roster + ingestion).
 _LEGEND_LEAGUE_NAME = "Legend League"
@@ -59,3 +61,21 @@ def is_always_tracked_legends_roster_player(db, tag: str) -> bool:
     pl = db.table("players").select("league_name").eq("tag", tag).limit(1).execute()
     row = (pl.data or [None])[0]
     return bool(row and league_name_is_legends(row.get("league_name")))
+
+
+# ── Legends day calendar ──────────────────────────────────────────────
+
+_LEGENDS_RESET_HOUR_UTC = 5  # 1 AM EST = 5 AM UTC
+
+
+def current_legends_day() -> date:
+    """Return the date representing the current legends day.
+
+    The legends day resets at 5:00 AM UTC (1 AM EST).  Before that hour
+    the "current" day is still the previous calendar date.
+    """
+    now = datetime.now(timezone.utc)
+    if now.time() < time(_LEGENDS_RESET_HOUR_UTC):
+        return (now - timedelta(days=1)).date()
+    return now.date()
+

@@ -106,6 +106,22 @@ def _normalize_player_tag(raw: str) -> str:
     return tag
 
 
+def _normalize_tracked_row(row: dict, *, default_tracking_group: str = "clan_july") -> None:
+    """Normalize a tracked_players row in-place for consistent API output.
+
+    Handles legacy `name` → `display_name` migration, default tracking_group, and legends_bracket.
+    """
+    if "display_name" not in row and row.get("name") is not None:
+        row["display_name"] = row["name"]
+    elif "display_name" not in row:
+        row["display_name"] = ""
+    row.pop("name", None)
+    if not row.get("tracking_group"):
+        row["tracking_group"] = default_tracking_group
+    lb = row.get("legends_bracket")
+    row["legends_bracket"] = 1 if lb not in (1, 2) else int(lb)
+
+
 def _resolve_display_name_from_players(db, tag: str) -> str:
     pres = db.table("players").select("name").eq("tag", tag).limit(1).execute()
     rows = pres.data or []
@@ -151,11 +167,9 @@ def list_tracked_players(
         )
     rows = resp.data
     for row in rows:
-        if "display_name" not in row and row.get("name") is not None:
-            row["display_name"] = row["name"]
-        elif "display_name" not in row:
-            row["display_name"] = ""
+        _normalize_tracked_row(row)
 
+    # Bulk-resolve empty display_name from the players table.
     need_fallback = [
         r["player_tag"] for r in rows if not (str(r.get("display_name") or "")).strip()
     ]
@@ -167,13 +181,6 @@ def list_tracked_players(
                 fn = pmap.get(r["player_tag"])
                 if fn:
                     r["display_name"] = fn
-
-    for row in rows:
-        row.pop("name", None)
-        if not row.get("tracking_group"):
-            row["tracking_group"] = "clan_july"
-        lb = row.get("legends_bracket")
-        row["legends_bracket"] = 1 if lb not in (1, 2) else int(lb)
 
     return {"data": rows}
 
@@ -236,13 +243,7 @@ def add_tracked_player(body: TrackedPlayerCreate, _: None = Depends(require_admi
         return row
     out = resp.data[0]
     if isinstance(out, dict):
-        if "display_name" not in out and out.get("name") is not None:
-            out["display_name"] = out["name"]
-        out.pop("name", None)
-        if not out.get("tracking_group"):
-            out["tracking_group"] = body.tracking_group
-        olb = out.get("legends_bracket")
-        out["legends_bracket"] = 1 if olb not in (1, 2) else int(olb)
+        _normalize_tracked_row(out, default_tracking_group=body.tracking_group)
     return out
 
 
@@ -270,13 +271,7 @@ def update_tracked_player(tag: str, body: TrackedPlayerUpdate, _: None = Depends
         )
     out = rows[0]
     if isinstance(out, dict):
-        if "display_name" not in out and out.get("name") is not None:
-            out["display_name"] = out["name"]
-        out.pop("name", None)
-        if not out.get("tracking_group"):
-            out["tracking_group"] = "clan_july"
-        olb = out.get("legends_bracket")
-        out["legends_bracket"] = 1 if olb not in (1, 2) else int(olb)
+        _normalize_tracked_row(out)
     return out
 
 

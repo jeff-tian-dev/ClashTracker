@@ -56,7 +56,7 @@ A complete rewrite with a proper full-stack architecture:
                            |                      |
                     +------v----------------------v------+
                     |        Supabase Postgres            |
-                    |   (hosted, 8 tables, 4 migrations)  |
+                    |  (hosted, 12 migrations)             |
                     +------^-----------------------------+
                            |
                     +------+------+
@@ -85,7 +85,7 @@ The frontend never communicates with Supabase directly. All database access is s
 
 ### Database Schema Design
 
-The schema spans **8 tables** across **4** ordered migration files (`001`–`004`), designed around the domain boundaries of the Supercell API.
+The schema spans **12** ordered migration files (`001`–`012`), designed around the domain boundaries of the Supercell API.
 
 **Key decisions:**
 
@@ -184,7 +184,7 @@ cp .env.example .env.local
 
 ### 2. Run database migrations
 
-Paste the contents of each file in `supabase/migrations/` into the Supabase SQL Editor, in order (`001_core_tables`, `002_wars`, `003_capital_raids`, `004_player_roster_and_tracked_players`).
+Paste the contents of each file in `supabase/migrations/` into the Supabase SQL Editor, in order (`001_core_tables` through `012_tracked_players_legends_bracket`).
 
 ### 3. Start the backend
 
@@ -323,7 +323,7 @@ Analytics-Dashboard/
 │   │   ├── supercell_client.py  # Supercell API wrapper
 │   │   ├── db.py                # Supabase upsert helpers, roster reconciliation
 │   │   └── config.py            # Environment loading
-│   ├── shared/                  # Shared Python (structured logging / correlation IDs)
+│   ├── shared/                  # Shared Python (config, logging, legends roster, battlelog cursor)
 │   └── web/                     # React frontend (Vite)
 │       └── src/
 │           ├── lib/             # api.ts, AdminContext, helpers
@@ -332,7 +332,7 @@ Analytics-Dashboard/
 │           └── components/      # Layout, Pagination, LoadingSpinner, EmptyState
 ├── .github/workflows/           # e.g. deploy-gh-pages.yml
 ├── deploy/                      # systemd units + VM / HTTPS setup scripts
-├── supabase/migrations/         # 001–004 (core, wars, raids, roster + tracked_players)
+├── supabase/migrations/         # 001–012 SQL migrations
 ├── tests/                       # pytest (API contract, smoke, admin behavior)
 ├── fixtures/                    # Sample JSON for contract tests
 ├── static/                      # Optional production SPA + assets (served by FastAPI)
@@ -340,7 +340,8 @@ Analytics-Dashboard/
 ├── legacy-v1/                   # Original V1 implementation (HTML/CSS + Python + JSON)
 ├── deploy.ps1                   # Sync Python apps + supabase + deploy to Oracle VM
 ├── requirements-dev.txt         # pytest, httpx (dev/CI)
-├── coc-api-docs.json            # Local reference copy of CoC API docs (optional)
+├── coc-api-docs.json            # Local reference copy of CoC API docs (gitignored)
+├── ARCHITECTURE.md              # Module responsibility map
 ├── logs/                        # Local scratch output for one-off scripts (gitignored JSON)
 ├── .env.example                 # Template (no secrets)
 └── .gitignore

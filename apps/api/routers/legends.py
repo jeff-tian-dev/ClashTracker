@@ -1,26 +1,24 @@
 import logging
-from datetime import date, datetime, time, timezone, timedelta
+from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query
 
-from shared.legends_roster import fetch_legends_roster_tags, is_always_tracked_legends_roster_player
+from shared.legends_roster import (
+    current_legends_day as _current_legends_day,
+    fetch_legends_roster_tags,
+    is_always_tracked_legends_roster_player,
+)
 
 from ..database import get_db
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
-_LEGENDS_RESET_HOUR_UTC = 5
-
 # Dedup-only archive dates (e.g. rows moved off the live day) — omit from player day picker.
 _HIDDEN_FROM_LEGENDS_DAY_PICKER: frozenset[str] = frozenset({"2026-03-22"})
 
 
-def _current_legends_day() -> date:
-    now = datetime.now(timezone.utc)
-    if now.time() < time(_LEGENDS_RESET_HOUR_UTC):
-        return (now - timedelta(days=1)).date()
-    return now.date()
+# _current_legends_day is imported from shared.legends_roster
 
 
 def _legends_empty_totals() -> dict:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ingestion import legends
-from ingestion.player_activity import _canonical_snapshot
+from shared.battlelog import canonical_snapshot as _canonical_snapshot
 
 
 def _legend_battle(**kwargs) -> dict:

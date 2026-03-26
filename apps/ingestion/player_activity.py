@@ -8,6 +8,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
+from shared.battlelog import canonical_snapshot, is_attack, snapshots_equal
 from shared.logutil import get_ingestion_run_id, log_event
 
 from . import supercell_client as coc
@@ -16,32 +17,6 @@ from . import db
 logger = logging.getLogger(__name__)
 
 _RETENTION_DAYS = 14
-
-
-def _canonical_snapshot(b: dict) -> dict:
-    atk = b.get("attackKey")
-    if atk is not None:
-        attack_bool = bool(atk)
-    else:
-        attack_bool = bool(b.get("attack", True))
-    return {
-        "battleTime": b.get("battleTime"),
-        "opponentPlayerTag": b.get("opponentPlayerTag") or "",
-        "battleType": b.get("battleType") or "",
-        "attack": attack_bool,
-        "stars": int(b.get("stars", 0)),
-        "destructionPercentage": int(b.get("destructionPercentage", 0)),
-    }
-
-
-def _snapshots_equal(stored: dict, battle: dict) -> bool:
-    return _canonical_snapshot(stored) == _canonical_snapshot(battle)
-
-
-def _is_attack(battle: dict) -> bool:
-    if "attackKey" in battle:
-        return bool(battle.get("attackKey"))
-    return bool(battle.get("attack", True))
 
 
 def _ingest_one_player(client, player_tag: str) -> None:
@@ -53,7 +28,7 @@ def _ingest_one_player(client, player_tag: str) -> None:
     cursor_row = db.get_battlelog_cursor(player_tag)
 
     if cursor_row is None:
-        db.upsert_battlelog_cursor(player_tag, _canonical_snapshot(newest))
+        db.upsert_battlelog_cursor(player_tag, canonical_snapshot(newest))
         log_event(
             logger,
             "ingestion.player_activity.baseline",
@@ -70,7 +45,7 @@ def _ingest_one_player(client, player_tag: str) -> None:
     new_battles: list[dict] = []
     found_cursor = False
     for b in reversed(battles):
-        if _snapshots_equal(stored, b):
+        if snapshots_equal(stored, b):
             found_cursor = True
             break
         new_battles.append(b)
@@ -83,7 +58,7 @@ def _ingest_one_player(client, player_tag: str) -> None:
             player_tag=player_tag,
             ingestion_run_id=get_ingestion_run_id(),
         )
-        db.upsert_battlelog_cursor(player_tag, _canonical_snapshot(newest))
+        db.upsert_battlelog_cursor(player_tag, canonical_snapshot(newest))
         return
 
     # Official BattleLogEntry (coc-api-docs.json) has no battleTime; stamp when we observe
@@ -92,7 +67,7 @@ def _ingest_one_player(client, player_tag: str) -> None:
     rows: list[dict] = []
     offset = 0
     for b in new_battles:
-        if not _is_attack(b):
+        if not is_attack(b):
             continue
         attacked_at = (observed_at + timedelta(microseconds=offset)).isoformat()
         offset += 1
@@ -115,7 +90,7 @@ def _ingest_one_player(client, player_tag: str) -> None:
             ingestion_run_id=get_ingestion_run_id(),
         )
 
-    db.upsert_battlelog_cursor(player_tag, _canonical_snapshot(newest))
+    db.upsert_battlelog_cursor(player_tag, canonical_snapshot(newest))
 
 
 def ingest_player_activity(client, player_tags: Iterable[str]) -> None:

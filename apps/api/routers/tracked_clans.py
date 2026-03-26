@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from ..auth import require_admin
 from ..database import get_db
+from .tracked_players import _normalize_player_tag
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
@@ -59,9 +60,7 @@ def list_tracked_clans():
 def add_tracked_clan(body: TrackedClanCreate, _: None = Depends(require_admin)):
     db = get_db()
     logger.debug("add tracked clan", extra={"event": "api.db.write", "table": "tracked_clans"})
-    tag = body.clan_tag.strip().upper()
-    if not tag.startswith("#"):
-        tag = f"#{tag}"
+    tag = _normalize_player_tag(body.clan_tag)
 
     row = {"clan_tag": tag, "note": body.note}
     try:
