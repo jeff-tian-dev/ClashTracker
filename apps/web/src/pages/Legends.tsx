@@ -663,7 +663,7 @@ export function Legends() {
             value={
               dayLeaders.bestDefense != null ? (
                 <Text color="red" weight="medium">
-                  −{dayLeaders.bestDefense.defense_total.toLocaleString()} lost
+                  −{dayLeaders.bestDefense.defense_total.toLocaleString()}
                 </Text>
               ) : (
                 <Text color="gray">—</Text>
@@ -679,11 +679,10 @@ export function Legends() {
             value={
               dayLeaders.bestBaseAvg != null ? (
                 <Text color="red" weight="medium">
-                  {dayLeaders.bestBaseAvg.toLocaleString(undefined, {
+                  {`−${dayLeaders.bestBaseAvg.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
-                  })}{" "}
-                  lost / defense
+                  })}/defense`}
                 </Text>
               ) : (
                 <Text color="gray">—</Text>
