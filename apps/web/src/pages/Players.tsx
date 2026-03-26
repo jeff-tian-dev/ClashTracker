@@ -191,8 +191,8 @@ export function Players() {
                           color="gray"
                           size={{ initial: "2", md: "1" }}
                           disabled={shieldDisabled}
-                          aria-label="Add or move to Clan (July) tracked list"
-                          title="Add or move to Clan (July) tracked list"
+                          aria-label="Move player to Clan (July) tracked list"
+                          title="Move player to Clan (July) tracked list"
                           onClick={() => handleTrackedGroupAction(p, "clan_july")}
                         >
                           <ShieldIcon />
@@ -203,8 +203,8 @@ export function Players() {
                           color="gray"
                           size={{ initial: "2", md: "1" }}
                           disabled={bookmarkDisabled}
-                          aria-label="Add or move to external tracked list"
-                          title="Add or move to external tracked list"
+                          aria-label="Move player to external tracked list"
+                          title="Move player to external tracked list"
                           onClick={() => handleTrackedGroupAction(p, "external")}
                         >
                           <BookmarkIcon />

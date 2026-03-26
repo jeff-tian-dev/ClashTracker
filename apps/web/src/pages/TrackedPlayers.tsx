@@ -292,8 +292,8 @@ function TrackedPlayerTableSection({
                             color="gray"
                             size={{ initial: "2", md: "1" }}
                             disabled={pendingMoveTag === r.player_tag}
-                            aria-label="Add or move to external tracked list"
-                            title="Add or move to external tracked list"
+                            aria-label="Move player to external tracked list"
+                            title="Move player to external tracked list"
                             onClick={() => void handleCrossListMove(r.player_tag, "external")}
                           >
                             <BookmarkIcon />
@@ -306,8 +306,8 @@ function TrackedPlayerTableSection({
                             color="gray"
                             size={{ initial: "2", md: "1" }}
                             disabled={pendingMoveTag === r.player_tag}
-                            aria-label="Add or move to Clan (July) tracked list"
-                            title="Add or move to Clan (July) tracked list"
+                            aria-label="Move player to Clan (July) tracked list"
+                            title="Move player to Clan (July) tracked list"
                             onClick={() => void handleCrossListMove(r.player_tag, "clan_july")}
                           >
                             <ShieldIcon />
