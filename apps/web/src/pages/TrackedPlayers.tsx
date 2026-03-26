@@ -370,10 +370,8 @@ export function TrackedPlayers() {
         Tracked Players
       </Heading>
       <Text size="2" color="gray" mb="5" style={{ display: "block", maxWidth: 720 }}>
-        Clan list is your July roster. External list is for players you track who are not on that
-        clan list. Names default from your player database when you add a tag (or &quot;Unknown
-        player&quot; until ingested); you can override on add or edit later. Adding or removing
-        requires admin.
+        Clan list is the July roster. External list is for players to track who are not on that clan
+        list.
       </Text>
 
       {loading ? (
