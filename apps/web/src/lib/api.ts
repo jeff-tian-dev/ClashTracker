@@ -287,6 +287,8 @@ export interface LegendsLeaderboardEntry {
   tracking_group?: "clan_july" | "external" | null;
   /** When pinned: 1 = upper, 2 = lower. Omitted/null if not in tracked_players. */
   legends_bracket?: 1 | 2 | null;
+  /** Set when no longer on tracked clan roster; UI demotes unless is_always_tracked. */
+  left_tracked_roster_at?: string | null;
 }
 
 export interface LegendsLeaderboard {

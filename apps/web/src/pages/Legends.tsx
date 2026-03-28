@@ -24,6 +24,7 @@ import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { TableScrollArea } from "../components/TableScrollArea";
 import { DIALOG_CONTENT_LG, DIALOG_CONTENT_SM } from "../lib/dialogClasses";
+import { formatLeftAgo } from "../lib/formatRelativeLeft";
 import { useAdmin } from "../lib/AdminContext";
 
 /** Dedup archive days — not shown in the modal date picker (matches API filter). */
@@ -50,6 +51,24 @@ function compareLegendsTrophyOrder(a: LegendsLeaderboardEntry, b: LegendsLeaderb
   return b.net - a.net;
 }
 
+function isLeftRosterDemoted(e: LegendsLeaderboardEntry): boolean {
+  return Boolean(e.left_tracked_roster_at) && !e.is_always_tracked;
+}
+
+/** Non-tracked players who left tracked roster: bottom of section; then by leave time (Players tab order). */
+function compareLegendsDisplayOrder(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry): number {
+  const aDem = isLeftRosterDemoted(a);
+  const bDem = isLeftRosterDemoted(b);
+  if (aDem !== bDem) return aDem ? 1 : -1;
+  if (aDem && bDem) {
+    const ta = new Date(a.left_tracked_roster_at!).getTime();
+    const tb = new Date(b.left_tracked_roster_at!).getTime();
+    if (tb !== ta) return tb - ta;
+    return a.name.localeCompare(b.name);
+  }
+  return compareLegendsTrophyOrder(a, b);
+}
+
 /** Primary block in “July only” view: clan (July) list, not external pins. */
 function isClanJulyPrimary(e: LegendsLeaderboardEntry): boolean {
   if (e.tracking_group === "clan_july") return true;
@@ -74,12 +93,13 @@ function buildLegendsDisplayBlocks(
   aprilPush: boolean,
 ): LegendsDisplayBlock[] {
   if (!julyOnly) {
+    const sorted = [...entries].sort(compareLegendsDisplayOrder);
     return [
       {
         heading: null,
-        rows: entries.map((entry) => ({
+        rows: sorted.map((entry, i) => ({
           entry,
-          rankLabel: String(entry.rank),
+          rankLabel: String(i + 1),
           julyMuted: false,
         })),
       },
@@ -88,8 +108,8 @@ function buildLegendsDisplayBlocks(
 
   if (!aprilPush) {
     const rows: LegendsDisplayRow[] = [];
-    const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsTrophyOrder);
-    const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsTrophyOrder);
+    const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsDisplayOrder);
+    const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsDisplayOrder);
     clanJuly.forEach((entry, i) => {
       rows.push({ entry, rankLabel: String(i + 1), julyMuted: false });
     });
@@ -102,11 +122,11 @@ function buildLegendsDisplayBlocks(
   const primary = entries.filter(isClanJulyPrimary);
   const upper = primary
     .filter((e) => (e.legends_bracket ?? 1) === 1)
-    .sort(compareLegendsTrophyOrder);
+    .sort(compareLegendsDisplayOrder);
   const lower = primary
     .filter((e) => (e.legends_bracket ?? 1) === 2)
-    .sort(compareLegendsTrophyOrder);
-  const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsTrophyOrder);
+    .sort(compareLegendsDisplayOrder);
+  const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsDisplayOrder);
 
   const blocks: LegendsDisplayBlock[] = [
     {
@@ -184,7 +204,8 @@ function computeLegendsDayLeaders(
   entries: LegendsLeaderboardEntry[],
   julyOnly: boolean,
 ): LegendsDayLeaders {
-  const candidates = julyOnly ? entries.filter(isClanJulyPrimary) : entries;
+  const pool = julyOnly ? entries.filter(isClanJulyPrimary) : entries;
+  const candidates = pool.filter((e) => !isLeftRosterDemoted(e));
   const hasBattles = (e: LegendsLeaderboardEntry) => e.has_battles !== false;
 
   const bestAttacks = pickMaxMetric(
@@ -294,12 +315,15 @@ function LegendsLeaderboardTable({
               ) : null}
               {block.rows.map(({ entry: e, rankLabel, julyMuted }) => {
                 const hasBattles = e.has_battles !== false;
+                const leftDemoted = isLeftRosterDemoted(e);
+                const rowMuted = leftDemoted ? " opacity-60" : julyMuted ? " opacity-[0.55]" : "";
+                const nameGrey = julyMuted || leftDemoted;
                 return (
                   <Table.Row
                     key={e.player_tag}
                     className={
                       "cursor-pointer transition-colors hover:bg-[var(--gray-3)] [&_td]:!py-3 md:[&_td]:!py-2" +
-                      (julyMuted ? " opacity-[0.55]" : "")
+                      rowMuted
                     }
                     onClick={() => openDetail(e.player_tag)}
                   >
@@ -309,15 +333,22 @@ function LegendsLeaderboardTable({
                       </Text>
                     </Table.Cell>
                     <Table.Cell>
-                      <Text
-                        className={
-                          julyMuted
-                            ? "font-medium text-[var(--gray-11)]"
-                            : "text-[var(--accent-11)] font-medium"
-                        }
-                      >
-                        {e.name}
-                      </Text>
+                      <Flex gap="2" wrap="wrap" align="center">
+                        <Text
+                          className={
+                            nameGrey
+                              ? "font-medium text-[var(--gray-11)]"
+                              : "text-[var(--accent-11)] font-medium"
+                          }
+                        >
+                          {e.name}
+                        </Text>
+                        {leftDemoted && e.left_tracked_roster_at ? (
+                          <Badge size="1" color="gray" variant="surface">
+                            {formatLeftAgo(e.left_tracked_roster_at)}
+                          </Badge>
+                        ) : null}
+                      </Flex>
                     </Table.Cell>
                     <Table.Cell>
                       {hasBattles ? (

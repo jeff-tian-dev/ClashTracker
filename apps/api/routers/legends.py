@@ -108,7 +108,7 @@ def legends_leaderboard():
         batch = player_tags[i : i + _chunk]
         player_resp = (
             db.table("players")
-            .select("tag, name, trophies")
+            .select("tag, name, trophies, left_tracked_roster_at")
             .in_("tag", batch)
             .execute()
         )
@@ -134,6 +134,7 @@ def legends_leaderboard():
             "is_always_tracked": tag in always_tracked_tags,
             "tracking_group": tag_to_tracking_group.get(tag) if tag in always_tracked_tags else None,
             "legends_bracket": tag_to_legends_bracket.get(tag) if tag in always_tracked_tags else None,
+            "left_tracked_roster_at": player.get("left_tracked_roster_at"),
         })
 
     rows.sort(key=lambda r: (-r["final_trophies"], -r["net"]))

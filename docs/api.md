@@ -105,6 +105,8 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 
 **Query params** (`/api/legends/{tag}`): `legends_day` (YYYY-MM-DD, defaults to current)
 
+**`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list).
+
 ---
 
 ### Tracked Clans
