@@ -17,6 +17,7 @@ import { TableScrollArea } from "../components/TableScrollArea";
 import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 import { formatLeftAgo } from "../lib/formatRelativeLeft";
 import { ShieldIcon } from "../components/ShieldIcon";
+import { formatAttackSpanDaysFromIso } from "../lib/attackActivityHeatmap";
 
 type SortableColumn = "name" | "trophies" | "attacks_7d";
 
@@ -214,6 +215,7 @@ export function Players() {
                     pendingTrackTag === p.tag || (p.is_always_tracked && trackedG === "clan_july");
                   const bookmarkDisabled =
                     pendingTrackTag === p.tag || (p.is_always_tracked && trackedG === "external");
+                  const attackSpanDays = formatAttackSpanDaysFromIso(p.attacks_7d_first_at);
                   return (
                 <Table.Row key={p.tag} className={isLeft ? "opacity-60" : undefined}>
                   <Table.Cell>
@@ -232,7 +234,18 @@ export function Players() {
                   </Table.Cell>
                   <Table.Cell>{p.town_hall_level}</Table.Cell>
                   <Table.Cell>{p.trophies.toLocaleString()}</Table.Cell>
-                  <Table.Cell>{p.attacks_7d}</Table.Cell>
+                  <Table.Cell>
+                    <Flex direction="column" gap="0" align="start">
+                      <Text as="span" size="2">
+                        {p.attacks_7d}
+                      </Text>
+                      {attackSpanDays != null ? (
+                        <Text size="1" color="gray" className="italic shrink-0">
+                          ({attackSpanDays} days of data)
+                        </Text>
+                      ) : null}
+                    </Flex>
+                  </Table.Cell>
                   <Table.Cell>{p.war_stars}</Table.Cell>
                   <Table.Cell>{p.role || "—"}</Table.Cell>
                   <Table.Cell>{p.league_name || "—"}</Table.Cell>

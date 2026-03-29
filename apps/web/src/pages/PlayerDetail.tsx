@@ -3,7 +3,10 @@ import { useParams, Link } from "react-router-dom";
 import { Box, Card, Flex, Grid, Heading, Text, Badge } from "@radix-ui/themes";
 import { ArrowLeftIcon } from "@radix-ui/react-icons";
 import { api, Player, PlayerActivityResponse } from "../lib/api";
-import { filterAttacksToLastLocalDays } from "../lib/attackActivityHeatmap";
+import {
+  filterAttacksToLastLocalDays,
+  formatAttackHistorySpanDays,
+} from "../lib/attackActivityHeatmap";
 import { AttackActivityHeatmap } from "../components/AttackActivityHeatmap";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
@@ -24,17 +27,6 @@ function bucketAttacksByLocalHour(attacks: { attacked_at: string }[]): number[] 
     if (h >= 0 && h <= 23) counts[h]++;
   }
   return counts;
-}
-
-/** Days from earliest attack in the filtered window to now (client clock). */
-function formatAttackHistorySpanDays(attacks: { attacked_at: string }[]): string | null {
-  if (attacks.length === 0) return null;
-  const first = Math.min(...attacks.map((a) => new Date(a.attacked_at).getTime()));
-  const days = (Date.now() - first) / 86_400_000;
-  if (!Number.isFinite(days) || days < 0) return null;
-  if (days < 0.1) return "<0.1";
-  if (days < 10) return days.toFixed(1);
-  return days.toFixed(0);
 }
 
 function ActivityHourChart({ attacks }: { attacks: { attacked_at: string }[] }) {

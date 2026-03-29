@@ -33,11 +33,11 @@ def _attach_tracked_flags(rows: list, by_tag: dict[str, str]) -> None:
         row["tracking_group"] = group
 
 
-def _attack_counts_7d_for_tags(db, tags: list[str], since_iso: str) -> dict[str, int]:
-    """Count player_attack_events per tag since since_iso via SQL GROUP BY (no PostgREST row cap)."""
+def _attack_stats_7d_for_tags(db, tags: list[str], since_iso: str) -> dict[str, dict]:
+    """Count + earliest attacked_at per tag since since_iso (SQL aggregate, no row cap)."""
     if not tags:
         return {}
-    out: dict[str, int] = {}
+    out: dict[str, dict] = {}
     chunk_size = 200
     for i in range(0, len(tags), chunk_size):
         chunk = tags[i : i + chunk_size]
@@ -47,16 +47,27 @@ def _attack_counts_7d_for_tags(db, tags: list[str], since_iso: str) -> dict[str,
         ).execute()
         for row in resp.data or []:
             tag = row.get("player_tag")
-            if tag is not None:
-                out[tag] = int(row.get("attack_count") or 0)
+            if tag is None:
+                continue
+            first = row.get("first_attacked_at")
+            out[tag] = {
+                "count": int(row.get("attack_count") or 0),
+                "first_at": first if first else None,
+            }
     return out
 
 
 def _attach_attacks_7d(db, rows: list, since_iso: str) -> None:
     tags = [r["tag"] for r in rows]
-    by_tag = _attack_counts_7d_for_tags(db, tags, since_iso)
+    by_tag = _attack_stats_7d_for_tags(db, tags, since_iso)
     for row in rows:
-        row["attacks_7d"] = by_tag.get(row["tag"], 0)
+        stats = by_tag.get(row["tag"])
+        if not stats:
+            row["attacks_7d"] = 0
+            row["attacks_7d_first_at"] = None
+            continue
+        row["attacks_7d"] = stats["count"]
+        row["attacks_7d_first_at"] = stats["first_at"]
 
 
 def _fetch_all_players_filtered(db, clan_tag: str | None, search: str | None) -> list:

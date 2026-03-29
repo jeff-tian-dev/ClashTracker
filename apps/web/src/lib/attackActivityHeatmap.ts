@@ -26,6 +26,32 @@ export function attackCountToLevel(count: number): ActivityLevel {
   return 4;
 }
 
+function formatAttackSpanDaysFromFirstMs(firstMs: number): string | null {
+  const days = (Date.now() - firstMs) / 86_400_000;
+  if (!Number.isFinite(days) || days < 0) return null;
+  if (days < 0.1) return "<0.1";
+  if (days < 10) return days.toFixed(1);
+  return days.toFixed(0);
+}
+
+/** Days from earliest attack in the list to now (browser clock). Used for profile chart subtitle. */
+export function formatAttackHistorySpanDays(attacks: { attacked_at: string }[]): string | null {
+  if (attacks.length === 0) return null;
+  const first = Math.min(...attacks.map((a) => new Date(a.attacked_at).getTime()));
+  if (Number.isNaN(first)) return null;
+  return formatAttackSpanDaysFromFirstMs(first);
+}
+
+/**
+ * Same numeric rules as formatAttackHistorySpanDays; use with earliest attack ISO from the API 7d window.
+ */
+export function formatAttackSpanDaysFromIso(earliestIso: string | null | undefined): string | null {
+  if (earliestIso == null || earliestIso === "") return null;
+  const first = new Date(earliestIso).getTime();
+  if (Number.isNaN(first)) return null;
+  return formatAttackSpanDaysFromFirstMs(first);
+}
+
 export function localDateKey(d: Date): string {
   const y = d.getFullYear();
   const m = d.getMonth() + 1;
