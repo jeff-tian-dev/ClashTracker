@@ -174,8 +174,6 @@ export interface Player {
   updated_at: string;
   /** Multiplayer attacks recorded in the last 7 days (from battle log ingestion). */
   attacks_7d: number;
-  /** Earliest such attack in that UTC rolling 7d window; for "(X days of data)" label. */
-  attacks_7d_first_at?: string | null;
   /** Set when no longer on any tracked clan roster (and not on July roster). Detection time, not historical leave. */
   left_tracked_roster_at?: string | null;
   roster_sort_bucket?: number;

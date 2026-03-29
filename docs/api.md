@@ -62,7 +62,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/players` | No | Paginated player list. Query: `sort`=`roster` (default), `name`, `trophies`, `attacks_7d`; `order`=`asc`|`desc` (default `asc`; ignored when `sort=roster`). Each row includes `attacks_7d` and optional `attacks_7d_first_at` (earliest such event in that UTC window, for the “days of data” label). |
+| `GET` | `/api/players` | No | Paginated player list. Query: `sort`=`roster` (default), `name`, `trophies`, `attacks_7d`; `order`=`asc`|`desc` (default `asc`; ignored when `sort=roster`). Each row includes `attacks_7d` (attacks in the last 7 days). |
 | `GET` | `/api/players/{tag}` | No | Single player detail |
 | `GET` | `/api/players/{tag}/activity` | No | Attack timestamps (last ~90 days) |
 | `DELETE` | `/api/players/{tag}` | Admin | Delete player record |

@@ -100,7 +100,7 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 
 ## Database Migrations
 
-Located in `supabase/migrations/`, ordered `001`–`014`:
+Located in `supabase/migrations/`, ordered `001`–`013`:
 
 | # | File | Creates |
 |---|------|---------|
@@ -115,7 +115,6 @@ Located in `supabase/migrations/`, ordered `001`–`014`:
 | 011 | `011_legends_battlelog_cursor.sql` | `legends_battlelog_cursor` |
 | 012 | `012_tracked_players_legends_bracket.sql` | `legends_bracket` column |
 | 013 | `013_player_attack_counts_since.sql` | RPC `player_attack_counts_since` for accurate list `attacks_7d` |
-| 014 | `014_player_attack_counts_since_first_at.sql` | RPC adds `first_attacked_at` for span label |
 
 ---
 

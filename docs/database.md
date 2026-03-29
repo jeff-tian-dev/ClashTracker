@@ -1,6 +1,6 @@
 # Database Schema
 
-Supabase (hosted PostgreSQL). 14 ordered migrations in `supabase/migrations/`.
+Supabase (hosted PostgreSQL). 13 ordered migrations in `supabase/migrations/`.
 
 ---
 
@@ -229,7 +229,7 @@ Multiplayer attack timestamps for activity heatmaps.
 
 ### `player_attack_counts_since(p_since timestamptz, p_tags text[])`
 
-Returns `(player_tag, attack_count, first_attacked_at)` for each tag in `p_tags` that has at least one `player_attack_events` row with `attacked_at >= p_since`. Used by `GET /api/players` for `attacks_7d` and the “(X days of data)” label (`first_attacked_at` = `MIN(attacked_at)` in that window). Migrations `013`–`014`.
+Returns `(player_tag, attack_count)` for each tag in `p_tags` that has at least one `player_attack_events` row with `attacked_at >= p_since`. Used by `GET /api/players` for `attacks_7d` so counts are not truncated by PostgREST max rows (migration `013`).
 
 ---
 
