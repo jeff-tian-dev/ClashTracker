@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 from datetime import datetime, timedelta, timezone
 from typing import Literal
 
@@ -35,22 +34,22 @@ def _attach_tracked_flags(rows: list, by_tag: dict[str, str]) -> None:
 
 
 def _attack_counts_7d_for_tags(db, tags: list[str], since_iso: str) -> dict[str, int]:
-    """Count player_attack_events rows per player_tag since since_iso."""
+    """Count player_attack_events per tag since since_iso via SQL GROUP BY (no PostgREST row cap)."""
     if not tags:
         return {}
-    counts: Counter[str] = Counter()
-    chunk_size = 100
+    out: dict[str, int] = {}
+    chunk_size = 200
     for i in range(0, len(tags), chunk_size):
         chunk = tags[i : i + chunk_size]
-        resp = (
-            db.table("player_attack_events")
-            .select("player_tag")
-            .in_("player_tag", chunk)
-            .gte("attacked_at", since_iso)
-            .execute()
-        )
-        counts.update(r["player_tag"] for r in (resp.data or []))
-    return dict(counts)
+        resp = db.rpc(
+            "player_attack_counts_since",
+            {"p_since": since_iso, "p_tags": chunk},
+        ).execute()
+        for row in resp.data or []:
+            tag = row.get("player_tag")
+            if tag is not None:
+                out[tag] = int(row.get("attack_count") or 0)
+    return out
 
 
 def _attach_attacks_7d(db, rows: list, since_iso: str) -> None:

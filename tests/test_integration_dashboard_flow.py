@@ -44,22 +44,6 @@ def test_players_first_page_shape(client, monkeypatch):
         def execute(self):
             return _R()
 
-    class _QAttackEvents:
-        def select(self, *a, **k):
-            return self
-
-        def in_(self, *a, **k):
-            return self
-
-        def gte(self, *a, **k):
-            return self
-
-        def execute(self):
-            class _E:
-                data: list = []
-
-            return _E()
-
     class _QTracked:
         def select(self, *a, **k):
             return self
@@ -70,15 +54,30 @@ def test_players_first_page_shape(client, monkeypatch):
 
             return _Tr()
 
+    class _Rpc:
+        def __init__(self, data: list):
+            self._data = data
+
+        def execute(self):
+            class _Out:
+                pass
+
+            o = _Out()
+            o.data = self._data
+            return o
+
     class _Db:
         def table(self, name):
             if name == "players":
                 return _QPlayers()
             if name == "tracked_players":
                 return _QTracked()
-            if name == "player_attack_events":
-                return _QAttackEvents()
             raise AssertionError(f"unexpected table {name!r}")
+
+        def rpc(self, fn, params):
+            assert fn == "player_attack_counts_since"
+            assert "p_since" in params and "p_tags" in params
+            return _Rpc([])
 
     monkeypatch.setattr("api.routers.players.get_db", lambda: _Db())
 

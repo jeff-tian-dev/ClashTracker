@@ -2,6 +2,18 @@
 
 Quick navigation guide for AI agents. Answers: "Where do I edit X?"
 
+## Minimum docs by task type
+
+Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matches the first row, reading this file alone is often enough.
+
+| Task type | Read at least |
+|-----------|----------------|
+| Typo / comment-only / single-file UI copy (no API, DB, ingestion) | This file (`project-map.md`) |
+| Naming, file placement, layer boundaries | `conventions.md` |
+| Ingestion flow, CoC endpoints, pipeline order | `data-flow.md` |
+| New or changed HTTP routes | `apps/api/routers/*.py` + `docs/api.md` (docs are hints) |
+| Schema / migrations | `docs/database.md` + `supabase/migrations/` |
+
 ---
 
 ## Feature → File Map
@@ -88,7 +100,7 @@ Quick navigation guide for AI agents. Answers: "Where do I edit X?"
 
 ## Database Migrations
 
-Located in `supabase/migrations/`, ordered `001`–`012`:
+Located in `supabase/migrations/`, ordered `001`–`013`:
 
 | # | File | Creates |
 |---|------|---------|
@@ -102,6 +114,7 @@ Located in `supabase/migrations/`, ordered `001`–`012`:
 | 010 | `010_tracked_players_tracking_group.sql` | `tracking_group` column on `tracked_players` |
 | 011 | `011_legends_battlelog_cursor.sql` | `legends_battlelog_cursor` |
 | 012 | `012_tracked_players_legends_bracket.sql` | `legends_bracket` column |
+| 013 | `013_player_attack_counts_since.sql` | RPC `player_attack_counts_since` for accurate list `attacks_7d` |
 
 ---
 
