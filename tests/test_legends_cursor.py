@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from ingestion import legends
 from shared.battlelog import canonical_snapshot as _canonical_snapshot
+from shared.legends_roster import legends_day_containing_utc
 
 
 def _legend_battle(**kwargs) -> dict:
@@ -127,3 +130,52 @@ def test_legends_cursor_miss_resets_without_batch(monkeypatch):
     assert batch_calls == []
     assert len(cursor_calls) == 1
     assert cursor_calls[0][1] == _canonical_snapshot(battle_log[-1])
+
+
+def test_legends_day_containing_utc_respects_5am_boundary():
+    before = datetime(2026, 3, 25, 4, 59, 0, tzinfo=timezone.utc)
+    assert legends_day_containing_utc(before).isoformat() == "2026-03-24"
+    at_reset = datetime(2026, 3, 25, 5, 0, 0, tzinfo=timezone.utc)
+    assert legends_day_containing_utc(at_reset).isoformat() == "2026-03-25"
+
+
+def test_legends_row_legends_day_from_battle_time(monkeypatch):
+    battle_old = _legend_battle(opponentPlayerTag="#OLD", battleTime="20260324T120000.000Z")
+    battle_cursor = _legend_battle(
+        opponentPlayerTag="#MID", stars=2, destructionPercentage=80, battleTime="20260324T130000.000Z"
+    )
+    battle_new = _legend_battle(
+        opponentPlayerTag="#NEW", attack=False, stars=1, battleTime="20260325T060000.000Z"
+    )
+    battle_log = [battle_old, battle_cursor, battle_new]
+
+    stored = _canonical_snapshot(battle_cursor)
+    monkeypatch.setattr(
+        legends.db,
+        "get_legends_battlelog_cursor",
+        lambda _tag: {"cursor_snapshot": stored},
+    )
+
+    batch_calls: list[list] = []
+
+    monkeypatch.setattr(legends.db, "upsert_player", lambda _p: None)
+    monkeypatch.setattr(legends.db, "upsert_legends_battlelog_cursor", lambda *_a, **_k: None)
+    monkeypatch.setattr(
+        legends.db,
+        "upsert_legends_battles_batch",
+        lambda rows: batch_calls.append(list(rows)),
+    )
+    monkeypatch.setattr(
+        legends.db,
+        "get_legends_day_attack_defense_counts",
+        lambda _tag, _day: (0, 0),
+    )
+
+    monkeypatch.setattr(legends.coc, "get_player", lambda _c, _t: {})
+    monkeypatch.setattr(legends.coc, "get_player_battlelog", lambda _c, _t: battle_log)
+
+    legends._ingest_player_legends(object(), "#P1", "2026-03-24", "2026-03-25T00:00:00Z")
+
+    assert len(batch_calls) == 1
+    assert len(batch_calls[0]) == 1
+    assert batch_calls[0][0]["legends_day"] == "2026-03-25"

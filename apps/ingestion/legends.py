@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from shared.battlelog import canonical_snapshot, is_attack, snapshots_equal
-from shared.legends_roster import current_legends_day
+from shared.legends_roster import current_legends_day, legends_day_containing_utc
 from shared.logutil import get_ingestion_run_id, log_event
 
 from . import supercell_client as coc
@@ -75,6 +75,44 @@ def ingest_legends(client) -> None:
 _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY = 8
 
 
+def _legends_day_str_for_battle(battle: dict, fallback_day: str) -> str:
+    """Assign DB legends_day from CoC battleTime when present (same 5:00 UTC rule as roster)."""
+    raw = battle.get("battleTime")
+    if not raw:
+        return fallback_day
+    iso = db.parse_coc_timestamp(str(raw))
+    if not iso:
+        return fallback_day
+    try:
+        dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return fallback_day
+    return legends_day_containing_utc(dt).isoformat()
+
+
+def _take_battles_respecting_per_day_caps(
+    player_tag: str,
+    battles_newest_first: list[dict],
+    *,
+    want_attack: bool,
+    fallback_day: str,
+    day_counts: dict[str, list[int]],
+) -> list[dict]:
+    """Keep newest-first order; skip battles when that legends_day is already at 8 for the type."""
+    idx = 0 if want_attack else 1
+    selected: list[dict] = []
+    for battle in battles_newest_first:
+        day_str = _legends_day_str_for_battle(battle, fallback_day)
+        if day_str not in day_counts:
+            a, d = db.get_legends_day_attack_defense_counts(player_tag, day_str)
+            day_counts[day_str] = [a, d]
+        if day_counts[day_str][idx] >= _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY:
+            continue
+        selected.append(battle)
+        day_counts[day_str][idx] += 1
+    return selected
+
+
 def _ingest_player_legends(
     client, player_tag: str, legends_day_str: str, now_iso: str
 ) -> None:
@@ -128,16 +166,21 @@ def _ingest_player_legends(
     new_attacks = [b for b in new_battles if is_attack(b)]
     new_defenses = [b for b in new_battles if not is_attack(b)]
 
-    db_attack_count, db_defense_count = db.get_legends_day_attack_defense_counts(
-        player_tag, legends_day_str
+    day_counts: dict[str, list[int]] = {}
+    selected_attacks = _take_battles_respecting_per_day_caps(
+        player_tag,
+        new_attacks,
+        want_attack=True,
+        fallback_day=legends_day_str,
+        day_counts=day_counts,
     )
-    attack_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_attack_count)
-    defense_slots = max(0, _MAX_LEGENDS_ATTACKS_OR_DEFENSES_PER_DAY - db_defense_count)
-
-    take_attacks = min(len(new_attacks), attack_slots)
-    take_defenses = min(len(new_defenses), defense_slots)
-    selected_attacks = new_attacks[:take_attacks] if take_attacks else []
-    selected_defenses = new_defenses[:take_defenses] if take_defenses else []
+    selected_defenses = _take_battles_respecting_per_day_caps(
+        player_tag,
+        new_defenses,
+        want_attack=False,
+        fallback_day=legends_day_str,
+        day_counts=day_counts,
+    )
 
     rows_to_upsert: list[dict] = []
     for battle in selected_attacks + selected_defenses:
@@ -157,7 +200,7 @@ def _ingest_player_legends(
             "stars": stars,
             "destruction_pct": destruction_pct,
             "trophies": trophies,
-            "legends_day": legends_day_str,
+            "legends_day": _legends_day_str_for_battle(battle, legends_day_str),
             "first_seen_at": now_iso,
         })
 

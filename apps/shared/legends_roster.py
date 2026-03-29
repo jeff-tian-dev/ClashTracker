@@ -68,14 +68,22 @@ def is_always_tracked_legends_roster_player(db, tag: str) -> bool:
 _LEGENDS_RESET_HOUR_UTC = 5  # 1 AM EST = 5 AM UTC
 
 
+def legends_day_containing_utc(when: datetime) -> date:
+    """Map a UTC instant to the CoC legends calendar date (reset at 5:00 UTC)."""
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    else:
+        when = when.astimezone(timezone.utc)
+    if when.time() < time(_LEGENDS_RESET_HOUR_UTC):
+        return when.date() - timedelta(days=1)
+    return when.date()
+
+
 def current_legends_day() -> date:
     """Return the date representing the current legends day.
 
     The legends day resets at 5:00 AM UTC (1 AM EST).  Before that hour
     the "current" day is still the previous calendar date.
     """
-    now = datetime.now(timezone.utc)
-    if now.time() < time(_LEGENDS_RESET_HOUR_UTC):
-        return (now - timedelta(days=1)).date()
-    return now.date()
+    return legends_day_containing_utc(datetime.now(timezone.utc))
 
