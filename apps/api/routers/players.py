@@ -1,5 +1,7 @@
 import logging
+from collections import Counter
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from postgrest.exceptions import APIError
@@ -32,18 +34,97 @@ def _attach_tracked_flags(rows: list, by_tag: dict[str, str]) -> None:
         row["tracking_group"] = group
 
 
+def _attack_counts_7d_for_tags(db, tags: list[str], since_iso: str) -> dict[str, int]:
+    """Count player_attack_events rows per player_tag since since_iso."""
+    if not tags:
+        return {}
+    counts: Counter[str] = Counter()
+    chunk_size = 100
+    for i in range(0, len(tags), chunk_size):
+        chunk = tags[i : i + chunk_size]
+        resp = (
+            db.table("player_attack_events")
+            .select("player_tag")
+            .in_("player_tag", chunk)
+            .gte("attacked_at", since_iso)
+            .execute()
+        )
+        counts.update(r["player_tag"] for r in (resp.data or []))
+    return dict(counts)
+
+
+def _attach_attacks_7d(db, rows: list, since_iso: str) -> None:
+    tags = [r["tag"] for r in rows]
+    by_tag = _attack_counts_7d_for_tags(db, tags, since_iso)
+    for row in rows:
+        row["attacks_7d"] = by_tag.get(row["tag"], 0)
+
+
+def _fetch_all_players_filtered(db, clan_tag: str | None, search: str | None) -> list:
+    """Paginate through PostgREST range in case of large rosters."""
+    all_rows: list = []
+    batch = 1000
+    start = 0
+    while True:
+        q = db.table("players").select("*")
+        if clan_tag:
+            q = q.eq("clan_tag", clan_tag)
+        if search:
+            q = q.ilike("name", f"%{search}%")
+        resp = q.range(start, start + batch - 1).execute()
+        chunk = resp.data or []
+        all_rows.extend(chunk)
+        if len(chunk) < batch:
+            break
+        start += batch
+    return all_rows
+
+
 @router.get("/players")
 def list_players(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     clan_tag: str | None = None,
     search: str | None = None,
+    sort: Literal["roster", "name", "trophies", "attacks_7d"] = "roster",
+    order: Literal["asc", "desc"] = "asc",
 ):
     db = get_db()
     logger.debug(
         "list players",
-        extra={"event": "api.db.query", "table": "players", "page": page, "page_size": page_size},
+        extra={
+            "event": "api.db.query",
+            "table": "players",
+            "page": page,
+            "page_size": page_size,
+            "sort": sort,
+        },
     )
+    since_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    if sort == "attacks_7d":
+        rows = _fetch_all_players_filtered(db, clan_tag, search)
+        total = len(rows)
+        _attach_attacks_7d(db, rows, since_7d)
+
+        def _name_key(r: dict) -> str:
+            return (r.get("name") or "").lower()
+
+        if order == "desc":
+            rows.sort(key=lambda r: (-r["attacks_7d"], _name_key(r)))
+        else:
+            rows.sort(key=lambda r: (r["attacks_7d"], _name_key(r)))
+        offset = (page - 1) * page_size
+        data = rows[offset : offset + page_size]
+        by_tag = _tracked_players_by_tag(db)
+        _attach_tracked_flags(data, by_tag)
+        return {
+            "data": data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+
     query = db.table("players").select("*", count="exact")
 
     if clan_tag:
@@ -51,18 +132,25 @@ def list_players(
     if search:
         query = query.ilike("name", f"%{search}%")
 
+    if sort == "roster":
+        query = (
+            query.order("roster_sort_bucket")
+            .order("left_tracked_roster_at", desc=True)
+            .order("name")
+        )
+    elif sort == "name":
+        query = query.order("name", desc=(order == "desc"))
+    else:
+        query = query.order("trophies", desc=(order == "desc"))
+
     offset = (page - 1) * page_size
-    query = (
-        query.order("roster_sort_bucket")
-        .order("left_tracked_roster_at", desc=True)
-        .order("name")
-        .range(offset, offset + page_size - 1)
-    )
+    query = query.range(offset, offset + page_size - 1)
     resp = query.execute()
 
     by_tag = _tracked_players_by_tag(db)
     data = resp.data or []
     _attach_tracked_flags(data, by_tag)
+    _attach_attacks_7d(db, data, since_7d)
 
     return {
         "data": data,
@@ -125,6 +213,8 @@ def get_player(tag: str):
     group = by_tag.get(tag)
     row["is_always_tracked"] = group is not None
     row["tracking_group"] = group
+    since_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    _attach_attacks_7d(db, [row], since_7d)
     return row
 
 

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Box, Heading, Table, TextField, Dialog, Flex, Button, IconButton, Badge, Text } from "@radix-ui/themes";
-import { BookmarkIcon, MagnifyingGlassIcon, TrashIcon } from "@radix-ui/react-icons";
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  BookmarkIcon,
+  MagnifyingGlassIcon,
+  TrashIcon,
+} from "@radix-ui/react-icons";
 import { api, Player } from "../lib/api";
 import { useAdmin } from "../lib/AdminContext";
 import { LoadingSpinner } from "../components/LoadingSpinner";
@@ -12,10 +18,20 @@ import { DIALOG_CONTENT_SM } from "../lib/dialogClasses";
 import { formatLeftAgo } from "../lib/formatRelativeLeft";
 import { ShieldIcon } from "../components/ShieldIcon";
 
+type SortableColumn = "name" | "trophies" | "attacks_7d";
+
+function activeSortFromParams(searchParams: URLSearchParams): SortableColumn | null {
+  const s = searchParams.get("sort") || "";
+  if (s === "name" || s === "trophies" || s === "attacks_7d") return s;
+  return null;
+}
+
 export function Players() {
   const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page") || "1");
   const search = searchParams.get("search") || "";
+  const sortColumn = activeSortFromParams(searchParams);
+  const sortOrder: "asc" | "desc" = searchParams.get("order") === "desc" ? "desc" : "asc";
   const { isAdmin, adminKey } = useAdmin();
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -78,6 +94,10 @@ export function Players() {
     setLoading(true);
     const params: Record<string, string> = { page: String(page), page_size: "20" };
     if (search) params.search = search;
+    if (sortColumn) {
+      params.sort = sortColumn;
+      if (sortOrder === "desc") params.order = "desc";
+    }
 
     api.players(params)
       .then((res) => {
@@ -85,11 +105,49 @@ export function Players() {
         setTotal(res.total);
       })
       .finally(() => setLoading(false));
-  }, [page, search]);
+  }, [page, search, sortColumn, sortOrder]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    setSearchParams(searchInput ? { search: searchInput, page: "1" } : {});
+    const next = new URLSearchParams(searchParams);
+    if (searchInput) next.set("search", searchInput);
+    else next.delete("search");
+    next.set("page", "1");
+    setSearchParams(next);
+  }
+
+  function handleSortClick(field: SortableColumn) {
+    const next = new URLSearchParams(searchParams);
+    if (sortColumn === field) {
+      next.set("order", sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      next.set("sort", field);
+      next.set("order", "asc");
+    }
+    next.set("page", "1");
+    setSearchParams(next);
+  }
+
+  function resetRosterSort() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("sort");
+    next.delete("order");
+    next.set("page", "1");
+    setSearchParams(next);
+  }
+
+  function sortHeaderButton(field: SortableColumn, label: string) {
+    const active = sortColumn === field;
+    return (
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 font-inherit cursor-pointer border-0 bg-transparent p-0 text-left hover:text-[var(--accent-11)]"
+        onClick={() => handleSortClick(field)}
+      >
+        {label}
+        {active ? (sortOrder === "asc" ? <ArrowUpIcon /> : <ArrowDownIcon />) : null}
+      </button>
+    );
   }
 
   return (
@@ -110,6 +168,18 @@ export function Players() {
         </TextField.Root>
       </form>
 
+      {sortColumn != null && (
+        <Text size="2" color="gray" mb="3" as="div">
+          <button
+            type="button"
+            className="cursor-pointer border-0 bg-transparent p-0 underline text-inherit hover:text-[var(--accent-11)]"
+            onClick={resetRosterSort}
+          >
+            Default roster order
+          </button>
+        </Text>
+      )}
+
       {loading ? (
         <LoadingSpinner />
       ) : players.length === 0 ? (
@@ -117,12 +187,17 @@ export function Players() {
       ) : (
         <>
           <TableScrollArea>
-            <Table.Root variant="surface" className="min-w-[720px]">
+            <Table.Root variant="surface" className="min-w-[820px]">
               <Table.Header>
                 <Table.Row>
-                  <Table.ColumnHeaderCell>Name</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>{sortHeaderButton("name", "Name")}</Table.ColumnHeaderCell>
                   <Table.ColumnHeaderCell>TH</Table.ColumnHeaderCell>
-                  <Table.ColumnHeaderCell>Trophies</Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>
+                    {sortHeaderButton("trophies", "Trophies")}
+                  </Table.ColumnHeaderCell>
+                  <Table.ColumnHeaderCell>
+                    {sortHeaderButton("attacks_7d", "Attacks (7d)")}
+                  </Table.ColumnHeaderCell>
                   <Table.ColumnHeaderCell>War Stars</Table.ColumnHeaderCell>
                   <Table.ColumnHeaderCell>Role</Table.ColumnHeaderCell>
                   <Table.ColumnHeaderCell>League</Table.ColumnHeaderCell>
@@ -157,6 +232,7 @@ export function Players() {
                   </Table.Cell>
                   <Table.Cell>{p.town_hall_level}</Table.Cell>
                   <Table.Cell>{p.trophies.toLocaleString()}</Table.Cell>
+                  <Table.Cell>{p.attacks_7d}</Table.Cell>
                   <Table.Cell>{p.war_stars}</Table.Cell>
                   <Table.Cell>{p.role || "—"}</Table.Cell>
                   <Table.Cell>{p.league_name || "—"}</Table.Cell>
@@ -250,8 +326,8 @@ export function Players() {
             pageSize={20}
             total={total}
             onChange={(p) => {
-              const next: Record<string, string> = { page: String(p) };
-              if (search) next.search = search;
+              const next = new URLSearchParams(searchParams);
+              next.set("page", String(p));
               setSearchParams(next);
             }}
           />

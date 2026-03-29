@@ -44,6 +44,22 @@ def test_players_first_page_shape(client, monkeypatch):
         def execute(self):
             return _R()
 
+    class _QAttackEvents:
+        def select(self, *a, **k):
+            return self
+
+        def in_(self, *a, **k):
+            return self
+
+        def gte(self, *a, **k):
+            return self
+
+        def execute(self):
+            class _E:
+                data: list = []
+
+            return _E()
+
     class _QTracked:
         def select(self, *a, **k):
             return self
@@ -60,6 +76,8 @@ def test_players_first_page_shape(client, monkeypatch):
                 return _QPlayers()
             if name == "tracked_players":
                 return _QTracked()
+            if name == "player_attack_events":
+                return _QAttackEvents()
             raise AssertionError(f"unexpected table {name!r}")
 
     monkeypatch.setattr("api.routers.players.get_db", lambda: _Db())
@@ -70,3 +88,4 @@ def test_players_first_page_shape(client, monkeypatch):
     PaginatedPlayersResponse.model_validate(body)
     assert body["data"][0].get("is_always_tracked") is False
     assert body["data"][0].get("tracking_group") is None
+    assert body["data"][0].get("attacks_7d") == 0
