@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  Badge,
   Box,
   Callout,
   Dialog,
@@ -18,7 +19,12 @@ import {
 import { LoadingSpinner } from "./LoadingSpinner";
 import { EmptyState } from "./EmptyState";
 import { TableScrollArea } from "./TableScrollArea";
-import { DIALOG_CONTENT_LG } from "../lib/dialogClasses";
+import { DIALOG_CONTENT_XL } from "../lib/dialogClasses";
+
+/** Deliberate low-effort hit (loot practice / dip). */
+function isFarmingHit(stars: number, destructionPct: number): boolean {
+  return stars === 1 && destructionPct < 40;
+}
 
 function Stars({ count }: { count: number }) {
   return (
@@ -97,7 +103,7 @@ function HistoryTable({
         {title} ({rows.length})
       </Text>
       <TableScrollArea>
-        <Table.Root variant="surface" className="min-w-[560px]">
+        <Table.Root variant="surface" className="min-w-[680px]">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeaderCell>War</Table.ColumnHeaderCell>
@@ -110,32 +116,51 @@ function HistoryTable({
               <Table.ColumnHeaderCell>Stars</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Destruction</Table.ColumnHeaderCell>
               <Table.ColumnHeaderCell>Duration</Table.ColumnHeaderCell>
+              <Table.ColumnHeaderCell>Note</Table.ColumnHeaderCell>
             </Table.Row>
           </Table.Header>
           <Table.Body>
-            {rows.map((r, idx) => (
-              <Table.Row key={`${r.war_id}-${r.attack_order}-${idx}`}>
-                <Table.Cell>
-                  <Link
-                    to={`/wars/${r.war_id}`}
-                    className="text-[var(--accent-11)] hover:underline"
-                  >
-                    vs {r.opponent_name || "Unknown"}
-                  </Link>
-                </Table.Cell>
-                <Table.Cell>
-                  {r.start_time ? new Date(r.start_time).toLocaleDateString() : "—"}
-                </Table.Cell>
-                <Table.Cell>
-                  {mode === "offense" ? r.defender_tag : r.attacker_tag}
-                </Table.Cell>
-                <Table.Cell>
-                  <Stars count={r.stars} />
-                </Table.Cell>
-                <Table.Cell>{r.destruction_percentage.toFixed(1)}%</Table.Cell>
-                <Table.Cell>{r.duration != null ? `${r.duration}s` : "—"}</Table.Cell>
-              </Table.Row>
-            ))}
+            {rows.map((r, idx) => {
+              const farming = isFarmingHit(r.stars, r.destruction_percentage);
+              const rowMuted =
+                farming
+                  ? "opacity-[0.72] [&_td]:text-[var(--gray-11)]"
+                  : "";
+              const linkClass = farming
+                ? "text-[var(--gray-11)] hover:underline hover:text-[var(--gray-12)]"
+                : "text-[var(--accent-11)] hover:underline";
+              return (
+                <Table.Row key={`${r.war_id}-${r.attack_order}-${idx}`} className={rowMuted}>
+                  <Table.Cell>
+                    <Link to={`/wars/${r.war_id}`} className={linkClass}>
+                      vs {r.opponent_name || "Unknown"}
+                    </Link>
+                  </Table.Cell>
+                  <Table.Cell>
+                    {r.start_time ? new Date(r.start_time).toLocaleDateString() : "—"}
+                  </Table.Cell>
+                  <Table.Cell>
+                    {mode === "offense" ? r.defender_tag : r.attacker_tag}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <Stars count={r.stars} />
+                  </Table.Cell>
+                  <Table.Cell>{r.destruction_percentage.toFixed(1)}%</Table.Cell>
+                  <Table.Cell>{r.duration != null ? `${r.duration}s` : "—"}</Table.Cell>
+                  <Table.Cell>
+                    {farming ? (
+                      <Badge size="1" color="gray" variant="surface">
+                        Farming attack
+                      </Badge>
+                    ) : (
+                      <Text size="2" color="gray">
+                        —
+                      </Text>
+                    )}
+                  </Table.Cell>
+                </Table.Row>
+              );
+            })}
           </Table.Body>
         </Table.Root>
       </TableScrollArea>
@@ -295,7 +320,7 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
           }
         }}
       >
-        <Dialog.Content className={DIALOG_CONTENT_LG}>
+        <Dialog.Content className={DIALOG_CONTENT_XL}>
           {detailLoading && offenses.length === 0 && defenses.length === 0 ? (
             <>
               <Dialog.Title>War history</Dialog.Title>

@@ -4,3 +4,7 @@ export const DIALOG_CONTENT_SM =
 
 export const DIALOG_CONTENT_LG =
   "w-[calc(100vw-1.5rem)] max-w-[min(600px,calc(100vw-1.5rem))] max-h-[90dvh] overflow-y-auto box-border pb-[max(1rem,env(safe-area-inset-bottom))]";
+
+/** Wide modal (e.g. war player attack/defense history). */
+export const DIALOG_CONTENT_XL =
+  "w-[calc(100vw-1.5rem)] max-w-[min(1024px,calc(100vw-1.5rem))] max-h-[90dvh] overflow-y-auto box-border pb-[max(1rem,env(safe-area-inset-bottom))]";
