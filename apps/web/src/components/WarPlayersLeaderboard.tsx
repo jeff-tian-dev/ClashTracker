@@ -19,7 +19,10 @@ import {
 import { LoadingSpinner } from "./LoadingSpinner";
 import { EmptyState } from "./EmptyState";
 import { TableScrollArea } from "./TableScrollArea";
-import { DIALOG_CONTENT_XL } from "../lib/dialogClasses";
+import {
+  DIALOG_CONTENT_SCROLL_SAFE,
+  DIALOG_MAX_W_WIDE,
+} from "../lib/dialogClasses";
 
 /** Deliberate low-effort hit (loot practice / dip). */
 function isFarmingHit(stars: number, destructionPct: number): boolean {
@@ -323,7 +326,11 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
           }
         }}
       >
-        <Dialog.Content className={DIALOG_CONTENT_XL}>
+        <Dialog.Content
+          maxWidth={DIALOG_MAX_W_WIDE}
+          width="100%"
+          className={DIALOG_CONTENT_SCROLL_SAFE}
+        >
           {detailLoading && offenses.length === 0 && defenses.length === 0 ? (
             <>
               <Dialog.Title>War history</Dialog.Title>
