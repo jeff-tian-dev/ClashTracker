@@ -321,6 +321,7 @@ def upsert_war_attacks(war_id: int, war_data: dict) -> None:
     attacks: list[dict] = []
     for side_key in ("clan", "opponent"):
         side = war_data.get(side_key, {})
+        is_home_attacker = side_key == "clan"
         for member in side.get("members", []):
             for atk in member.get("attacks", []):
                 attacks.append({
@@ -331,6 +332,7 @@ def upsert_war_attacks(war_id: int, war_data: dict) -> None:
                     "destruction_percentage": atk.get("destructionPercentage", 0),
                     "attack_order": atk.get("order", 0),
                     "duration": atk.get("duration"),
+                    "is_home_attacker": is_home_attacker,
                 })
     if attacks:
         get_db().table("war_attacks").upsert(

@@ -1,4 +1,5 @@
 import logging
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from postgrest.exceptions import APIError
@@ -6,9 +7,183 @@ from postgrest.exceptions import APIError
 from ..auth import require_admin
 from ..database import get_db
 from ..supabase_errors import http_exception_for_single_lookup
+from .tracked_players import _normalize_player_tag
 
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
+
+_SORT_FIELDS = frozenset({
+    "avg_offense_stars",
+    "avg_offense_destruction",
+    "offense_count",
+    "attacks_missed",
+    "avg_defense_stars",
+    "avg_defense_destruction",
+    "defense_count",
+    "wars_participated",
+    "player_name",
+})
+
+
+def _normalize_clan_tag(raw: str) -> str:
+    tag = raw.strip().upper()
+    if not tag.startswith("#"):
+        tag = f"#{tag}"
+    return tag
+
+
+def _assert_tracked_clan(db, clan_tag: str) -> None:
+    row = (
+        db.table("tracked_clans")
+        .select("clan_tag")
+        .eq("clan_tag", clan_tag)
+        .limit(1)
+        .execute()
+    )
+    if not (row.data and len(row.data) > 0):
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "not_found",
+                "resource": "tracked_clan",
+                "identifier": clan_tag,
+                "hint": "clan_tag must be a tracked clan.",
+            },
+        )
+
+
+def _coerce_rpc_row(row: dict[str, Any]) -> dict[str, Any]:
+    """Normalize numeric types from PostgREST JSON for stable sorting/JSON."""
+    out = dict(row)
+    for k in (
+        "offense_count",
+        "defense_count",
+        "wars_participated",
+        "attacks_missed",
+    ):
+        if k in out and out[k] is not None:
+            out[k] = int(out[k])
+    for k in (
+        "avg_offense_stars",
+        "avg_offense_destruction",
+        "avg_defense_stars",
+        "avg_defense_destruction",
+    ):
+        if k in out and out[k] is not None:
+            out[k] = float(out[k])
+    if out.get("war_id") is not None:
+        out["war_id"] = int(out["war_id"])
+    if out.get("stars") is not None:
+        out["stars"] = int(out["stars"])
+    if out.get("attack_order") is not None:
+        out["attack_order"] = int(out["attack_order"])
+    if out.get("duration") is not None:
+        out["duration"] = int(out["duration"])
+    if out.get("destruction_percentage") is not None:
+        out["destruction_percentage"] = float(out["destruction_percentage"])
+    return out
+
+
+def _sort_leaderboard_rows(
+    rows: list[dict[str, Any]],
+    sort: str,
+    order: Literal["asc", "desc"],
+) -> None:
+    desc = order == "desc"
+
+    def key(r: dict[str, Any]):
+        v = r.get(sort)
+        if sort == "player_name":
+            return (v or "").casefold()
+        if sort.startswith("avg_"):
+            if v is None:
+                return (True, 0.0)
+            fv = float(v)
+            return (False, -fv) if desc else (False, fv)
+        iv = int(v or 0)
+        return -iv if desc else iv
+
+    if sort == "player_name":
+        rows.sort(key=key, reverse=desc)
+    else:
+        rows.sort(key=key)
+
+
+@router.get("/wars/player-stats")
+def war_player_stats(
+    clan_tag: str = Query(..., min_length=1),
+    sort: str = Query("avg_offense_stars"),
+    order: Literal["asc", "desc"] = Query("desc"),
+):
+    """Aggregated war performance per player for one tracked clan (ended wars)."""
+    db = get_db()
+    normalized = _normalize_clan_tag(clan_tag)
+    if sort not in _SORT_FIELDS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_sort",
+                "hint": f"sort must be one of: {sorted(_SORT_FIELDS)}",
+            },
+        )
+    _assert_tracked_clan(db, normalized)
+
+    logger.debug(
+        "war player stats",
+        extra={
+            "event": "api.wars.player_stats",
+            "clan_tag": normalized,
+            "sort": sort,
+            "order": order,
+        },
+    )
+
+    resp = db.rpc("war_player_leaderboard_stats", {"p_clan_tag": normalized}).execute()
+    raw = resp.data or []
+    rows = [_coerce_rpc_row(dict(r)) for r in raw]
+    _sort_leaderboard_rows(rows, sort, order)
+
+    return {"data": rows, "clan_tag": normalized, "sort": sort, "order": order}
+
+
+@router.get("/wars/players/{tag}/history")
+def war_player_history(
+    tag: str,
+    clan_tag: str = Query(..., min_length=1),
+):
+    """Offense and defense attack rows for one player in one tracked clan."""
+    db = get_db()
+    normalized_clan = _normalize_clan_tag(clan_tag)
+    player_tag = _normalize_player_tag(tag)
+    _assert_tracked_clan(db, normalized_clan)
+
+    logger.debug(
+        "war player history",
+        extra={
+            "event": "api.wars.player_history",
+            "clan_tag": normalized_clan,
+            "player_tag": player_tag,
+        },
+    )
+
+    resp = db.rpc(
+        "war_player_attack_history",
+        {"p_clan_tag": normalized_clan, "p_player_tag": player_tag},
+    ).execute()
+    raw = resp.data or []
+    rows = [_coerce_rpc_row(dict(r)) for r in raw]
+
+    def _strip_kind(row: dict[str, Any]) -> dict[str, Any]:
+        return {k: v for k, v in row.items() if k != "kind"}
+
+    offenses = [_strip_kind(r) for r in rows if r.get("kind") == "offense"]
+    defenses = [_strip_kind(r) for r in rows if r.get("kind") == "defense"]
+    return {
+        "player_tag": player_tag,
+        "clan_tag": normalized_clan,
+        "offenses": offenses,
+        "defenses": defenses,
+    }
 
 
 @router.get("/wars")

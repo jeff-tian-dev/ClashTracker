@@ -70,6 +70,21 @@ export const api = {
     return request<PaginatedResponse<War>>(`/api/wars${qs}`);
   },
   war: (id: number) => request<WarDetail>(`/api/wars/${id}`),
+  warPlayerStats: (params: {
+    clan_tag: string;
+    sort?: string;
+    order?: "asc" | "desc";
+  }) => {
+    const q = new URLSearchParams();
+    q.set("clan_tag", params.clan_tag);
+    if (params.sort != null && params.sort !== "") q.set("sort", params.sort);
+    if (params.order != null) q.set("order", params.order);
+    return request<WarPlayerStatsResponse>(`/api/wars/player-stats?${q}`);
+  },
+  warPlayerHistory: (tag: string, clan_tag: string) =>
+    request<WarPlayerHistoryResponse>(
+      `/api/wars/players/${encodeURIComponent(tag)}/history?${new URLSearchParams({ clan_tag }).toString()}`,
+    ),
 
   raids: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -210,6 +225,48 @@ export interface WarAttack {
   destruction_percentage: number;
   attack_order: number;
   duration: number | null;
+  /** Set by ingestion; null on legacy rows until wars re-sync. */
+  is_home_attacker?: boolean | null;
+}
+
+export interface WarPlayerStatsEntry {
+  player_tag: string;
+  player_name: string;
+  offense_count: number;
+  avg_offense_stars: number | null;
+  avg_offense_destruction: number | null;
+  defense_count: number;
+  avg_defense_stars: number | null;
+  avg_defense_destruction: number | null;
+  wars_participated: number;
+  attacks_missed: number;
+}
+
+export interface WarPlayerStatsResponse {
+  data: WarPlayerStatsEntry[];
+  clan_tag: string;
+  sort: string;
+  order: "asc" | "desc";
+}
+
+export interface WarPlayerHistoryAttackRow {
+  war_id: number;
+  start_time: string;
+  opponent_name: string | null;
+  stars: number;
+  destruction_percentage: number;
+  attack_order: number;
+  duration: number | null;
+  attacker_tag: string;
+  defender_tag: string;
+  is_home_attacker: boolean;
+}
+
+export interface WarPlayerHistoryResponse {
+  player_tag: string;
+  clan_tag: string;
+  offenses: WarPlayerHistoryAttackRow[];
+  defenses: WarPlayerHistoryAttackRow[];
 }
 
 export interface WarDetail extends War {

@@ -31,9 +31,9 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 - **Activity chart data**: `apps/ingestion/player_activity.py`, `apps/web/src/components/AttackActivityHeatmap.tsx`
 
 ### Wars (list + detail)
-- **UI list**: `apps/web/src/pages/Wars.tsx`
+- **UI list**: `apps/web/src/pages/Wars.tsx` (Logs / Players subtabs; player leaderboard `apps/web/src/components/WarPlayersLeaderboard.tsx`)
 - **UI detail**: `apps/web/src/pages/WarDetail.tsx`
-- **API**: `apps/api/routers/wars.py` → `GET /api/wars`, `GET /api/wars/{id}`, `DELETE /api/wars/{id}`
+- **API**: `apps/api/routers/wars.py` → `GET /api/wars`, `GET /api/wars/player-stats`, `GET /api/wars/players/{tag}/history`, `GET /api/wars/{id}`, `DELETE /api/wars/{id}`
 - **Ingestion**: `apps/ingestion/db.py` → `upsert_war()`, `upsert_war_attacks()`, `resolve_stale_wars()`
 
 ### Capital Raids (list + detail)
@@ -100,7 +100,7 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 
 ## Database Migrations
 
-Located in `supabase/migrations/`, ordered `001`–`013`:
+Located in `supabase/migrations/`, ordered `001`–`014`:
 
 | # | File | Creates |
 |---|------|---------|
@@ -115,6 +115,7 @@ Located in `supabase/migrations/`, ordered `001`–`013`:
 | 011 | `011_legends_battlelog_cursor.sql` | `legends_battlelog_cursor` |
 | 012 | `012_tracked_players_legends_bracket.sql` | `legends_bracket` column |
 | 013 | `013_player_attack_counts_since.sql` | RPC `player_attack_counts_since` for accurate list `attacks_7d` |
+| 014 | `014_war_attacks_home_attacker.sql` | `war_attacks.is_home_attacker`; RPCs `war_player_leaderboard_stats`, `war_player_attack_history` |
 
 ---
 

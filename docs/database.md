@@ -1,6 +1,6 @@
 # Database Schema
 
-Supabase (hosted PostgreSQL). 13 ordered migrations in `supabase/migrations/`.
+Supabase (hosted PostgreSQL). 14 ordered migrations in `supabase/migrations/`.
 
 ---
 
@@ -128,6 +128,7 @@ Individual attacks within a war.
 | `destruction_percentage` | NUMERIC(5,2) | |
 | `attack_order` | INT | |
 | `duration` | INT | Seconds, nullable |
+| `is_home_attacker` | BOOLEAN | Nullable on legacy rows; `true` = attacker on tracked clan side (CoC `clan`), `false` = opponent side; set by ingestion (migration `014`) |
 
 **Unique**: `(war_id, attacker_tag, attack_order)`
 

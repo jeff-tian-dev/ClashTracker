@@ -76,10 +76,16 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/wars` | No | Paginated war list |
+| `GET` | `/api/wars/player-stats` | No | Per-player war leaderboard for one **tracked** `clan_tag` (ended wars; RPC `war_player_leaderboard_stats`) |
+| `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war attack rows for one **tracked** `clan_tag` (query param; ended wars) |
 | `GET` | `/api/wars/{id}` | No | War detail with nested `attacks[]` |
 | `DELETE` | `/api/wars/{id}` | Admin | Delete war record |
 
 **Query params** (list): `page`, `page_size`, `clan_tag`, `state`
+
+**Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`)
+
+**Query params** (`players/{tag}/history`): `clan_tag` (required). `{tag}` is URL-encoded player tag (e.g. `%23...`).
 
 ---
 
