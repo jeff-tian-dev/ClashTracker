@@ -1,6 +1,6 @@
 # Database Schema
 
-Supabase (hosted PostgreSQL). 14 ordered migrations in `supabase/migrations/`.
+Supabase (hosted PostgreSQL). 15 ordered migrations in `supabase/migrations/`.
 
 ---
 

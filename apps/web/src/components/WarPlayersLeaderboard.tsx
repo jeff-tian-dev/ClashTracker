@@ -242,6 +242,9 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
 
   return (
     <Box>
+      <Text size="1" color="gray" mb="3" as="p">
+        Farming hits (1 star and under 40% destruction) are excluded from these stats. They still appear in the player history popup.
+      </Text>
       <Flex align="center" gap="3" wrap="wrap" mb="4">
         <Text size="2" weight="medium">
           Sort by
