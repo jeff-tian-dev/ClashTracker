@@ -74,17 +74,23 @@ export const api = {
     clan_tag: string;
     sort?: string;
     order?: "asc" | "desc";
+    /** Last N ended wars for this clan; omit for all wars. */
+    last_wars?: 5 | 10 | 15;
   }) => {
     const q = new URLSearchParams();
     q.set("clan_tag", params.clan_tag);
     if (params.sort != null && params.sort !== "") q.set("sort", params.sort);
     if (params.order != null) q.set("order", params.order);
+    if (params.last_wars != null) q.set("last_wars", String(params.last_wars));
     return request<WarPlayerStatsResponse>(`/api/wars/player-stats?${q}`);
   },
-  warPlayerHistory: (tag: string, clan_tag: string) =>
-    request<WarPlayerHistoryResponse>(
-      `/api/wars/players/${encodeURIComponent(tag)}/history?${new URLSearchParams({ clan_tag }).toString()}`,
-    ),
+  warPlayerHistory: (tag: string, clan_tag: string, opts?: { last_wars?: 5 | 10 | 15 }) => {
+    const q = new URLSearchParams({ clan_tag });
+    if (opts?.last_wars != null) q.set("last_wars", String(opts.last_wars));
+    return request<WarPlayerHistoryResponse>(
+      `/api/wars/players/${encodeURIComponent(tag)}/history?${q}`,
+    );
+  },
 
   raids: (params?: Record<string, string>) => {
     const qs = params ? "?" + new URLSearchParams(params).toString() : "";
@@ -247,6 +253,8 @@ export interface WarPlayerStatsResponse {
   clan_tag: string;
   sort: string;
   order: "asc" | "desc";
+  /** Echo of request: null when all wars were included. */
+  last_wars: 5 | 10 | 15 | null;
 }
 
 export interface WarPlayerHistoryAttackRow {
@@ -265,6 +273,7 @@ export interface WarPlayerHistoryAttackRow {
 export interface WarPlayerHistoryResponse {
   player_tag: string;
   clan_tag: string;
+  last_wars: 5 | 10 | 15 | null;
   offenses: WarPlayerHistoryAttackRow[];
   defenses: WarPlayerHistoryAttackRow[];
 }

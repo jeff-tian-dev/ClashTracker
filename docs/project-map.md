@@ -100,7 +100,7 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 
 ## Database Migrations
 
-Located in `supabase/migrations/`, ordered `001`–`016`:
+Located in `supabase/migrations/`, ordered `001`–`017`:
 
 | # | File | Creates |
 |---|------|---------|
@@ -118,6 +118,7 @@ Located in `supabase/migrations/`, ordered `001`–`016`:
 | 014 | `014_war_attacks_home_attacker.sql` | `war_attacks.is_home_attacker`; RPCs `war_player_leaderboard_stats`, `war_player_attack_history` |
 | 015 | `015_war_stats_exclude_farming.sql` | `war_player_leaderboard_stats` excludes farming hits (1★, dest &lt; 40%) |
 | 016 | `016_legends_confirmation_queue.sql` | `legends_confirmation_queue` (deferred legends diff) |
+| 017 | `017_war_player_stats_war_window.sql` | War RPCs gain `p_max_wars` (last N ended wars by `start_time`) |
 
 ---
 

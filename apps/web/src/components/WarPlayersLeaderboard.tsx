@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Badge,
   Box,
@@ -76,6 +76,19 @@ function parseSortOption(v: string): { field: string; order: "asc" | "desc" } {
     field: field || "avg_offense_stars",
     order: order === "asc" ? "asc" : "desc",
   };
+}
+
+const PW_PARAM = "pw";
+
+type WarWindow = "all" | 5 | 10 | 15;
+
+function parseWarWindow(raw: string | null): WarWindow {
+  if (raw === "5" || raw === "10" || raw === "15") return Number(raw) as 5 | 10 | 15;
+  return "all";
+}
+
+function warWindowApiArg(w: WarWindow): 5 | 10 | 15 | undefined {
+  return w === "all" ? undefined : w;
 }
 
 function HistoryTable({
@@ -172,6 +185,12 @@ function HistoryTable({
 }
 
 export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const warWindow = useMemo(
+    () => parseWarWindow(searchParams.get(PW_PARAM)),
+    [searchParams],
+  );
+
   const [entries, setEntries] = useState<WarPlayerStatsEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -191,11 +210,13 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
     if (!clanTag) return;
     setLoading(true);
     setError(null);
+    const lw = warWindowApiArg(warWindow);
     api
       .warPlayerStats({
         clan_tag: clanTag,
         sort: sortField,
         order: sortOrder,
+        ...(lw != null ? { last_wars: lw } : {}),
       })
       .then((res) => setEntries(res.data))
       .catch((err: unknown) => {
@@ -203,7 +224,7 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
         setError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setLoading(false));
-  }, [clanTag, sortField, sortOrder]);
+  }, [clanTag, sortField, sortOrder, warWindow]);
 
   useEffect(() => {
     loadLeaderboard();
@@ -216,7 +237,8 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
     setOffenses([]);
     setDefenses([]);
     try {
-      const res = await api.warPlayerHistory(tag, clanTag);
+      const lw = warWindowApiArg(warWindow);
+      const res = await api.warPlayerHistory(tag, clanTag, lw != null ? { last_wars: lw } : {});
       setOffenses(res.offenses);
       setDefenses(res.defenses);
     } catch {
@@ -249,6 +271,32 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
         Farming hits (1 star and under 40% destruction) are excluded from these stats. They still appear in the player history popup.
       </Text>
       <Flex align="center" gap="3" wrap="wrap" mb="4">
+        <Text size="2" weight="medium">
+          Wars
+        </Text>
+        <Select.Root
+          value={warWindow === "all" ? "all" : String(warWindow)}
+          onValueChange={(v) => {
+            if (!v) return;
+            setSearchParams(
+              (prev) => {
+                const n = new URLSearchParams(prev);
+                if (v === "all") n.delete(PW_PARAM);
+                else n.set(PW_PARAM, v);
+                return n;
+              },
+              { replace: true },
+            );
+          }}
+        >
+          <Select.Trigger />
+          <Select.Content position="popper">
+            <Select.Item value="all">All wars</Select.Item>
+            <Select.Item value="5">Last 5 wars</Select.Item>
+            <Select.Item value="10">Last 10 wars</Select.Item>
+            <Select.Item value="15">Last 15 wars</Select.Item>
+          </Select.Content>
+        </Select.Root>
         <Text size="2" weight="medium">
           Sort by
         </Text>
@@ -340,7 +388,8 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
             <>
               <Dialog.Title>{detailName || selectedTag}</Dialog.Title>
               <Dialog.Description size="2" color="gray" mb="3">
-                War history for {selectedTag} (ended wars)
+                War history for {selectedTag}
+                {warWindow === "all" ? " (all ended wars)" : ` (last ${warWindow} wars)`}
               </Dialog.Description>
               {detailLoading ? (
                 <Text size="2" color="gray" mb="2">

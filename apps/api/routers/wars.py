@@ -12,6 +12,8 @@ from .tracked_players import _normalize_player_tag
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
+_WAR_LEADERBOARD_LAST_WARS = frozenset({5, 10, 15})
+
 _SORT_FIELDS = frozenset({
     "avg_offense_stars",
     "avg_offense_destruction",
@@ -114,10 +116,19 @@ def war_player_stats(
     clan_tag: str = Query(..., min_length=1),
     sort: str = Query("avg_offense_stars"),
     order: Literal["asc", "desc"] = Query("desc"),
+    last_wars: int | None = Query(None, description="Last N ended wars by start time; omit or null = all"),
 ):
     """Aggregated war performance per player for one tracked clan (ended wars)."""
     db = get_db()
     normalized = _normalize_clan_tag(clan_tag)
+    if last_wars is not None and last_wars not in _WAR_LEADERBOARD_LAST_WARS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_last_wars",
+                "hint": "last_wars must be one of: 5, 10, 15, or omitted for all wars",
+            },
+        )
     if sort not in _SORT_FIELDS:
         raise HTTPException(
             status_code=400,
@@ -135,26 +146,45 @@ def war_player_stats(
             "clan_tag": normalized,
             "sort": sort,
             "order": order,
+            "last_wars": last_wars,
         },
     )
 
-    resp = db.rpc("war_player_leaderboard_stats", {"p_clan_tag": normalized}).execute()
+    rpc_args: dict[str, Any] = {"p_clan_tag": normalized}
+    if last_wars is not None:
+        rpc_args["p_max_wars"] = last_wars
+    resp = db.rpc("war_player_leaderboard_stats", rpc_args).execute()
     raw = resp.data or []
     rows = [_coerce_rpc_row(dict(r)) for r in raw]
     _sort_leaderboard_rows(rows, sort, order)
 
-    return {"data": rows, "clan_tag": normalized, "sort": sort, "order": order}
+    return {
+        "data": rows,
+        "clan_tag": normalized,
+        "sort": sort,
+        "order": order,
+        "last_wars": last_wars,
+    }
 
 
 @router.get("/wars/players/{tag}/history")
 def war_player_history(
     tag: str,
     clan_tag: str = Query(..., min_length=1),
+    last_wars: int | None = Query(None, description="Last N ended wars; omit or null = all"),
 ):
     """Offense and defense attack rows for one player in one tracked clan."""
     db = get_db()
     normalized_clan = _normalize_clan_tag(clan_tag)
     player_tag = _normalize_player_tag(tag)
+    if last_wars is not None and last_wars not in _WAR_LEADERBOARD_LAST_WARS:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_last_wars",
+                "hint": "last_wars must be one of: 5, 10, 15, or omitted for all wars",
+            },
+        )
     _assert_tracked_clan(db, normalized_clan)
 
     logger.debug(
@@ -163,13 +193,17 @@ def war_player_history(
             "event": "api.wars.player_history",
             "clan_tag": normalized_clan,
             "player_tag": player_tag,
+            "last_wars": last_wars,
         },
     )
 
-    resp = db.rpc(
-        "war_player_attack_history",
-        {"p_clan_tag": normalized_clan, "p_player_tag": player_tag},
-    ).execute()
+    rpc_hist: dict[str, Any] = {
+        "p_clan_tag": normalized_clan,
+        "p_player_tag": player_tag,
+    }
+    if last_wars is not None:
+        rpc_hist["p_max_wars"] = last_wars
+    resp = db.rpc("war_player_attack_history", rpc_hist).execute()
     raw = resp.data or []
     rows = [_coerce_rpc_row(dict(r)) for r in raw]
 
@@ -181,6 +215,7 @@ def war_player_history(
     return {
         "player_tag": player_tag,
         "clan_tag": normalized_clan,
+        "last_wars": last_wars,
         "offenses": offenses,
         "defenses": defenses,
     }

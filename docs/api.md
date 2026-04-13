@@ -83,9 +83,9 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 
 **Query params** (list): `page`, `page_size`, `clan_tag`, `state`
 
-**Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`)
+**Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`), `last_wars` (optional: `5`, `10`, or `15` — most recent ended wars by `start_time`; omit for all)
 
-**Query params** (`players/{tag}/history`): `clan_tag` (required). `{tag}` is URL-encoded player tag (e.g. `%23...`).
+**Query params** (`players/{tag}/history`): `clan_tag` (required), `last_wars` (optional, same as `player-stats`). `{tag}` is URL-encoded player tag (e.g. `%23...`).
 
 ---
 
