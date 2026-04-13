@@ -120,6 +120,7 @@ Located in `supabase/migrations/`, ordered `001`–`017`:
 | 016 | `016_legends_confirmation_queue.sql` | `legends_confirmation_queue` (deferred legends diff) |
 | 017 | `017_war_player_stats_war_window.sql` | War RPCs gain `p_max_wars` (last N ended wars by `start_time`) — superseded by 018 for deployed DBs that apply 018 |
 | 018 | `018_war_player_stats_attack_window.sql` | RPCs use `p_max_attacks` (last N offense + last N defense rows per player); history adds `missed` rows; API query `last_attacks`. Hosted DB may list this DDL as two applied migrations (`war_player_stats_attack_window_leaderboard` + `_history`) if applied via Supabase MCP in two steps. |
+| 019 | `019_war_player_attack_window_param_bind.sql` | Window `WHERE` uses `(SELECT p_max_attacks)` so the limit binds correctly inside `RETURNS TABLE` RPC bodies. |
 
 ---
 

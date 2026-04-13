@@ -248,24 +248,39 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
     loadLeaderboard();
   }, [loadLeaderboard]);
 
-  async function openDetail(tag: string, name: string) {
+  function openDetail(tag: string, name: string) {
     setSelectedTag(tag);
     setDetailName(name);
+  }
+
+  useEffect(() => {
+    if (!selectedTag || !clanTag) return;
+    let cancelled = false;
     setDetailLoading(true);
     setOffenses([]);
     setDefenses([]);
-    try {
-      const la = attackWindowApiArg(warWindow);
-      const res = await api.warPlayerHistory(tag, clanTag, la != null ? { last_attacks: la } : {});
-      setOffenses(res.offenses);
-      setDefenses(res.defenses);
-    } catch {
-      setOffenses([]);
-      setDefenses([]);
-    } finally {
-      setDetailLoading(false);
-    }
-  }
+    const la = attackWindowApiArg(warWindow);
+    api
+      .warPlayerHistory(selectedTag, clanTag, la != null ? { last_attacks: la } : {})
+      .then((res) => {
+        if (!cancelled) {
+          setOffenses(res.offenses);
+          setDefenses(res.defenses);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOffenses([]);
+          setDefenses([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedTag, clanTag, warWindow]);
 
   if (!clanTag) {
     return <EmptyState message="Select a tracked clan to view player stats." />;
@@ -288,8 +303,8 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
       <Text size="1" color="gray" mb="3" as="p">
         Farming hits (1 star and under 40% destruction) are excluded from averages and attack counts.
         They still appear in history. Missed attacks appear in history and only affect the Missed column.
-        When limited, each player uses their last N offensive swings and last N defensive rows (by war
-        date).
+        When limited, stats and history use the player{"'"}s last N home offensive rows and last N
+        defensive rows (by war date), separately.
       </Text>
       <Flex align="center" gap="3" wrap="wrap" mb="4">
         <Text size="2" weight="medium">
@@ -312,10 +327,10 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
         >
           <Select.Trigger />
           <Select.Content position="popper">
-            <Select.Item value="all">All attacks</Select.Item>
-            <Select.Item value="5">Last 5 attacks</Select.Item>
-            <Select.Item value="10">Last 10 attacks</Select.Item>
-            <Select.Item value="15">Last 15 attacks</Select.Item>
+            <Select.Item value="all">All offenses and defenses</Select.Item>
+            <Select.Item value="5">Last 5 offenses and defenses</Select.Item>
+            <Select.Item value="10">Last 10 offenses and defenses</Select.Item>
+            <Select.Item value="15">Last 15 offenses and defenses</Select.Item>
           </Select.Content>
         </Select.Root>
         <Text size="2" weight="medium">
@@ -412,15 +427,23 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
                 War history for {selectedTag}
                 {warWindow === "all"
                   ? " (all ended wars)"
-                  : ` (last ${warWindow} offense + last ${warWindow} defense rows)`}
+                  : ` (last ${warWindow} offenses and last ${warWindow} defenses)`}
               </Dialog.Description>
               {detailLoading ? (
                 <Text size="2" color="gray" mb="2">
                   Refreshing…
                 </Text>
               ) : null}
-              <HistoryTable title="Attacks" rows={offenses} mode="offense" />
-              <HistoryTable title="Defenses" rows={defenses} mode="defense" />
+              <HistoryTable
+                title={warWindow === "all" ? "Offense" : `Offense (last ${warWindow})`}
+                rows={offenses}
+                mode="offense"
+              />
+              <HistoryTable
+                title={warWindow === "all" ? "Defense" : `Defense (last ${warWindow})`}
+                rows={defenses}
+                mode="defense"
+              />
             </>
           )}
         </Dialog.Content>
