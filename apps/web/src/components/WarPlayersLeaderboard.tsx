@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Badge,
@@ -204,10 +204,9 @@ function HistoryTable({
 
 export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
   const [searchParams, setSearchParams] = useSearchParams();
-  const warWindow = useMemo(
-    () => parseWarWindow(searchParams.get(PW_PARAM)),
-    [searchParams],
-  );
+  // Do not memoize on [searchParams]: RR keeps a stable URLSearchParams ref while hash query
+  // updates, so the memo would never invalidate and pw would stay stuck (always "all").
+  const warWindow = parseWarWindow(searchParams.get(PW_PARAM));
 
   const [entries, setEntries] = useState<WarPlayerStatsEntry[]>([]);
   const [loading, setLoading] = useState(true);
