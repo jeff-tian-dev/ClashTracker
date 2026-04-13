@@ -76,8 +76,8 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/api/wars` | No | Paginated war list |
-| `GET` | `/api/wars/player-stats` | No | Per-player war leaderboard for one **tracked** `clan_tag` (ended wars; RPC `war_player_leaderboard_stats`). **Farming hits omitted** (1 star and destruction &lt; 40%). |
-| `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war rows for one **tracked** `clan_tag` (ended wars); offense list includes synthetic missed slots (`missed_attack: true`) |
+| `GET` | `/api/wars/player-stats` | No | Per-player war leaderboard for one **tracked** `clan_tag` (ended wars; RPC `war_player_leaderboard_stats`). **Farming hits omitted** from averages and the Attacks column (1 star and destruction &lt; 40%). **Missed** = unused slots vs `attacks_per_member` using every home offensive row (farming still counts as a used swing). |
+| `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war rows for one **tracked** `clan_tag` (ended wars); offense list includes synthetic missed slots (`missed_attack: true`) when slots were unused; farming dips count as used so they do not duplicate as missed. |
 | `GET` | `/api/wars/{id}` | No | War detail with nested `attacks[]` |
 | `DELETE` | `/api/wars/{id}` | Admin | Delete war record |
 

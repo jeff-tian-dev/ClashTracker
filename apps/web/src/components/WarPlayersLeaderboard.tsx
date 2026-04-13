@@ -300,10 +300,10 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
   return (
     <Box>
       <Text size="1" color="gray" mb="3" as="p">
-        Farming hits (1 star and under 40% destruction) are excluded from averages and attack counts.
-        They still appear in history. Missed attacks appear in history and only affect the Missed column.
-        When limited, stats and history use the player{"'"}s last N home offensive rows and last N
-        defensive rows (by war date), separately.
+        Farming hits (1 star and under 40% destruction) are excluded from averages and the Attacks
+        column. They still appear in history with a note. Missed means unused war attack slots; dips
+        count as used so they are not shown as missed. When limited, stats and history use the player
+        {"'"}s last N home offensive rows and last N defensive rows (by war date), separately.
       </Text>
       <Flex align="center" gap="3" wrap="wrap" mb="4">
         <Text size="2" weight="medium">
