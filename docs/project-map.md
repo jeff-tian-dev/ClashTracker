@@ -12,7 +12,7 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 | Naming, file placement, layer boundaries | `conventions.md` |
 | Ingestion flow, CoC endpoints, pipeline order | `data-flow.md` |
 | New or changed HTTP routes | `apps/api/routers/*.py` + `docs/api.md` (docs are hints) |
-| Schema / migrations | `docs/database.md` + `supabase/migrations/` |
+| Schema / migrations | `docs/database.md` + `supabase/migrations/` (+ apply DDL via **Supabase MCP** `apply_migration` when connected; see `AGENTS.md` “Agent tooling”) |
 
 ---
 

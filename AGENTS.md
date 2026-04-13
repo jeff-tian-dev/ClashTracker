@@ -34,6 +34,20 @@ This is a full-stack system with:
 
 **Ingestion cadence (VM):** `deploy/clash-tracker-ingestion.timer` runs **`python -m apps.ingestion.main` every 10 minutes** (with up to ~2 minutes jitter). Do not describe it as hourly.
 
+### Agent tooling: Supabase MCP and Oracle VM (use without asking the user)
+
+When the workspace has the **Supabase MCP** attached for this project (in Cursor: **MCP server list** / project `mcps` folder → `...-supabase` → `SERVER_METADATA.json` for `serverIdentifier`; tool schemas in `tools/*.json`):
+
+* **Apply new DDL:** use the MCP tool **`apply_migration`** with `name` (snake_case) + full `query` from the new `supabase/migrations/NNN_*.sql` file. Prefer this over telling the user to paste SQL manually.
+* **Run read-only SQL or ad-hoc checks:** use **`execute_sql`** with a `query` string.
+* **Rules:** still add the migration file to the repo; **never edit** migrations that have already been applied to production.
+
+**Oracle Cloud VM (SSH):** repo-root **`.env.local`** defines `ORACLE_SERVER_IP` and `ORACLE_SSH_KEY_PATH` (same as [`deploy.ps1`](deploy.ps1): resolve a leading `./` key path against the project root). Run remote commands yourself, for example:
+
+`ssh -i <ORACLE_SSH_KEY_PATH> -o StrictHostKeyChecking=no ubuntu@<ORACLE_SERVER_IP> "journalctl -u clash-tracker-ingestion.service -n 80 --no-pager"`
+
+**systemd unit names:** ingestion one-shot is **`clash-tracker-ingestion.service`**; timer is **`clash-tracker-ingestion.timer`**. Deploy backend to the VM from the repo root: **`.\deploy.ps1`**.
+
 ---
 
 ## ⚠️ CORE RULES (MANDATORY)
@@ -204,6 +218,7 @@ Conventions:
 
 ## 📚 REFERENCE
 
+* Agent ops (MCP migrations, SSH VM) → **this file**, section *Agent tooling: Supabase MCP and Oracle VM*
 * Structure → `/docs/project-map.md`
 * Architecture → `/docs/architecture.md`
 * API → `/docs/api.md`
