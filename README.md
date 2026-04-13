@@ -2,7 +2,7 @@
 
 A full-stack data pipeline and dashboard that continuously ingests live Clash of Clans game data, stores it in PostgreSQL, serves it through a REST API, and renders it in a React dashboard.
 
-Tracks player statistics, clan war outcomes, Legends League battles, and Clan Capital raid performance across multiple clans — running autonomously with zero manual intervention.
+Tracks player statistics, clan war outcomes, Legends League battles, and Clan Capital raid performance across multiple clans — running autonomously with (almost) zero manual intervention.
 
 ---
 
@@ -13,7 +13,7 @@ Tracks player statistics, clan war outcomes, Legends League battles, and Clan Ca
 | Frontend | React 19 · TypeScript · Vite · Tailwind CSS v4 · Radix UI |
 | Backend | Python · FastAPI · Uvicorn |
 | Ingestion | Python · httpx · supabase-py |
-| Database | Supabase (PostgreSQL) · 12 SQL migrations |
+| Database | Supabase (PostgreSQL) · 16 SQL migrations |
 | Infra | Oracle Cloud VM · systemd · Caddy · GitHub Actions |
 
 ---
@@ -30,7 +30,7 @@ cp .env.example .env.local
 ```
 
 ### 2. Run database migrations
-Apply each file in `supabase/migrations/` (001–012) to your Supabase SQL Editor.
+Apply each file in `supabase/migrations/` (001–016) to your Supabase SQL Editor.
 
 ### 3. Start the backend
 ```bash
@@ -65,7 +65,7 @@ apps/
 ├── shared/       Cross-cutting utilities (config, logging, domain logic)
 └── web/          React SPA (10 pages, 7 components)
 
-supabase/migrations/   12 SQL migrations (001–012)
+supabase/migrations/   SQL migrations (001–016)
 tests/                 pytest suite (contract, regression, admin, integration)
 deploy/                systemd units, VM setup, HTTPS scripts
 docs/                  Comprehensive documentation (see below)
@@ -87,7 +87,7 @@ legacy-v1/             V1 implementation (preserved)
 | [api.md](docs/api.md) | All API endpoints, auth, request/response patterns |
 | [database.md](docs/database.md) | Complete schema reference (12 tables) |
 | [ai-instructions.md](docs/ai-instructions.md) | **Rules for AI agents** modifying this codebase |
-| [supercell-coc-api-reference.json](docs/supercell-coc-api-reference.json) | Supercell CoC API v1 OpenAPI spec (local reference) |
+| [supercell-coc-openapi.json](docs/supercell-coc-openapi.json) | Supercell CoC API v1 OpenAPI spec (local reference) |
 
 ---
 
@@ -96,7 +96,7 @@ legacy-v1/             V1 implementation (preserved)
 Deploy to Oracle Cloud VM via `deploy.ps1`:
 1. SCPs Python apps + migrations + env to VM
 2. Creates venv and installs dependencies
-3. Installs systemd units (API service + hourly ingestion timer)
+3. Installs systemd units (API service + ingestion timer, **every 10 minutes**)
 
 Frontend deploys to GitHub Pages via [GitHub Actions](.github/workflows/deploy-gh-pages.yml) on push to `main`.
 

@@ -13,6 +13,7 @@ clans ◄──────────────── players ────�
   │                       │
   ├── wars                ├── legends_battles
   │     └── war_attacks   ├── legends_battlelog_cursor
+  │                       ├── legends_confirmation_queue
   │                       ├── player_battlelog_cursor
   └── capital_raids       └── player_attack_events
         └── raid_members
@@ -197,6 +198,19 @@ Per-player cursor for legend-type battle log deduplication.
 | `player_tag` | TEXT PK FK → `players.tag` | `ON DELETE CASCADE` |
 | `cursor_snapshot` | JSONB | Newest battle fingerprint |
 | `updated_at` | TIMESTAMPTZ | |
+
+---
+
+### `legends_confirmation_queue`
+Scheduled **follow-up** legends battle-log pulls: diff against a **frozen** `cursor_snapshot` taken before the primary pass that enqueued the row (`run_after` ≈ enqueue time + 15 minutes).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | BIGSERIAL PK | |
+| `player_tag` | TEXT FK → `players.tag` | `ON DELETE CASCADE` |
+| `cursor_snapshot` | JSONB | Anchor for the delayed diff (same shape as `legends_battlelog_cursor.cursor_snapshot`) |
+| `run_after` | TIMESTAMPTZ | Process when `run_after <= now()` |
+| `created_at` | TIMESTAMPTZ | |
 
 ---
 

@@ -431,6 +431,31 @@ def upsert_legends_battles_batch(rows: list[dict]) -> None:
     )
 
 
+def insert_legends_confirmation_queue(player_tag: str, cursor_snapshot: dict, run_after_iso: str) -> None:
+    get_db().table("legends_confirmation_queue").insert({
+        "player_tag": player_tag,
+        "cursor_snapshot": cursor_snapshot,
+        "run_after": run_after_iso,
+    }).execute()
+
+
+def fetch_due_legends_confirmations(limit: int = 200) -> list[dict]:
+    resp = (
+        get_db()
+        .table("legends_confirmation_queue")
+        .select("id,player_tag,cursor_snapshot,run_after,created_at")
+        .lte("run_after", _now_iso())
+        .order("run_after", desc=False)
+        .limit(limit)
+        .execute()
+    )
+    return list(resp.data or [])
+
+
+def delete_legends_confirmation_queue(queue_id: int) -> None:
+    get_db().table("legends_confirmation_queue").delete().eq("id", queue_id).execute()
+
+
 def upsert_raid_members(raid_id: int, members: list[dict]) -> None:
     rows = [
         {

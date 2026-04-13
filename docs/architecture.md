@@ -3,8 +3,8 @@
 ## Overview
 
 Clash of Clans Tracker — a full-stack data pipeline and dashboard that:
-1. **Ingests** live game data hourly from the Supercell CoC API
-2. **Stores** it in Supabase PostgreSQL (12 migrations)
+1. **Ingests** live game data on a **10-minute** systemd timer (with jitter) from the Supercell CoC API
+2. **Stores** it in Supabase PostgreSQL (16 migrations)
 3. **Serves** it via a FastAPI REST API
 4. **Renders** it in a React SPA dashboard
 
@@ -19,7 +19,7 @@ Runs autonomously on an Oracle Cloud VM. The frontend never touches the database
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS v4, Radix UI Themes, react-router-dom (HashRouter) |
 | Backend | Python, FastAPI, Uvicorn |
 | Ingestion | Python, httpx, supabase-py |
-| Database | Supabase (hosted PostgreSQL), 12 SQL migrations |
+| Database | Supabase (hosted PostgreSQL), 16 SQL migrations |
 | Infrastructure | Oracle Cloud VM (Ubuntu 24.04), systemd, iptables, Caddy (HTTPS) |
 | External API | Supercell Clash of Clans API v1 |
 
@@ -117,7 +117,7 @@ Analytics-Dashboard/
 │           ├── lib/             # API client, contexts, helpers
 │           ├── pages/           # 10 page components
 │           └── components/      # 7 shared UI components
-├── supabase/migrations/         # 001–012 SQL migrations
+├── supabase/migrations/         # 001–016 SQL migrations
 ├── tests/                       # pytest (contract, regression, admin, integration)
 ├── deploy/                      # systemd units, VM setup, HTTPS scripts
 ├── scripts/                     # Test runner scripts
@@ -149,13 +149,13 @@ Analytics-Dashboard/
 ```
 Supercell CoC API
       │
-      │  hourly (systemd timer)
+      │  every 10 minutes (systemd timer + jitter)
       ▼
 apps/ingestion/
       │  supercell_client.py → ingest.py → db.py
       │  (fetch → transform → upsert)
       ▼
-Supabase PostgreSQL  ◄──────  12 migrations define schema
+Supabase PostgreSQL  ◄──────  16 migrations define schema
       │
       │  per-request REST queries
       ▼
@@ -176,7 +176,7 @@ All database access is server-side. The frontend only knows the API URL (`VITE_A
 
 ## Infrastructure
 
-- **Oracle Cloud VM** runs both API (uvicorn, systemd service) and ingestion (systemd timer, hourly)
+- **Oracle Cloud VM** runs both API (uvicorn, systemd service) and ingestion (systemd timer, **every 10 minutes**)
 - **Caddy** reverse-proxies HTTPS to FastAPI on port 8000
 - **GitHub Actions** deploys frontend to GitHub Pages on push to `main`
 - **DuckDNS** provides a free subdomain pointing to the VM
@@ -185,4 +185,4 @@ All database access is server-side. The frontend only knows the API URL (`VITE_A
 
 ## Reference Files
 
-- `docs/supercell-coc-api-reference.json` — Local copy of the Supercell Clash of Clans API v1 OpenAPI spec. Used as reference for ingestion development; not loaded at runtime.
+- `docs/supercell-coc-openapi.json` — Local copy of the Supercell Clash of Clans API v1 OpenAPI spec. Used as reference for ingestion development; not loaded at runtime.

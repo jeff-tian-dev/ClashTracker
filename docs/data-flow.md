@@ -24,7 +24,7 @@ How data moves through the system, step by step.
 
 ## 2. Ingestion Pipeline
 
-**Trigger**: systemd timer (hourly with jitter) → `python -m apps.ingestion.main`
+**Trigger**: systemd timer (**every 10 minutes** with up to ~2 minutes jitter via `RandomizedDelaySec`) → `python -m apps.ingestion.main` (see `deploy/clash-tracker-ingestion.timer`)
 
 ### Orchestration Flow (`ingest.py` → `run_once()`)
 
@@ -47,10 +47,12 @@ How data moves through the system, step by step.
    - Stamp departure timestamp for players no longer in any tracked clan/player list
 
 5. **Legends ingestion** (`legends.ingest_legends(client)`):
+   - Process due rows in `legends_confirmation_queue` (second pass ~15 minutes after each primary pass, diffing against a **frozen** pre-run cursor snapshot; see `apps/ingestion/legends.py`)
    - Get Legends roster tags from `shared/legends_roster.py`
    - Fetch battle logs → compare with cursor → extract new battles
    - Upsert into `legends_battles` table
    - Update `legends_battlelog_cursor`
+   - Enqueue a confirmation row (`run_after` ≈ now + 15 minutes) with the cursor snapshot from **before** that player’s primary pass
 
 6. **Player activity** (`player_activity.ingest_player_activity(client, active_tags)`):
    - Fetch battle logs for active players
@@ -85,6 +87,7 @@ clans → players (FK: clan_tag)
          ├→ capital_raids → raid_members (FK: raid_id, CASCADE)
          ├→ legends_battles (FK: player_tag, CASCADE)
          ├→ legends_battlelog_cursor (FK: player_tag, CASCADE)
+         ├→ legends_confirmation_queue (FK: player_tag, CASCADE)
          ├→ player_battlelog_cursor (FK: player_tag, CASCADE)
          └→ player_attack_events (FK: player_tag, CASCADE)
 tracked_clans (no FK to clans — can pre-exist)
