@@ -77,15 +77,15 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 |--------|------|------|-------------|
 | `GET` | `/api/wars` | No | Paginated war list |
 | `GET` | `/api/wars/player-stats` | No | Per-player war leaderboard for one **tracked** `clan_tag` (ended wars; RPC `war_player_leaderboard_stats`). **Farming hits omitted** (1 star and destruction &lt; 40%). |
-| `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war attack rows for one **tracked** `clan_tag` (query param; ended wars) |
+| `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war rows for one **tracked** `clan_tag` (ended wars); offense list includes synthetic missed slots (`missed_attack: true`) |
 | `GET` | `/api/wars/{id}` | No | War detail with nested `attacks[]` |
 | `DELETE` | `/api/wars/{id}` | Admin | Delete war record |
 
 **Query params** (list): `page`, `page_size`, `clan_tag`, `state`
 
-**Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`), `last_wars` (optional: `5`, `10`, or `15` — most recent ended wars by `start_time`; omit for all)
+**Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`), `last_attacks` (optional: `5`, `10`, or `15` — per player, last N home offensive swings and last N defensive rows by recency; omit for all ended wars)
 
-**Query params** (`players/{tag}/history`): `clan_tag` (required), `last_wars` (optional, same as `player-stats`). `{tag}` is URL-encoded player tag (e.g. `%23...`).
+**Query params** (`players/{tag}/history`): `clan_tag` (required), `last_attacks` (optional, same as `player-stats`). `{tag}` is URL-encoded player tag (e.g. `%23...`).
 
 ---
 

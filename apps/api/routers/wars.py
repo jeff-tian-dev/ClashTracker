@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -12,7 +13,7 @@ from .tracked_players import _normalize_player_tag
 router = APIRouter(prefix="/api")
 logger = logging.getLogger(__name__)
 
-_WAR_LEADERBOARD_LAST_WARS = frozenset({5, 10, 15})
+_WAR_LEADERBOARD_LAST_ATTACKS = frozenset({5, 10, 15})
 
 _SORT_FIELDS = frozenset({
     "avg_offense_stars",
@@ -75,7 +76,7 @@ def _coerce_rpc_row(row: dict[str, Any]) -> dict[str, Any]:
             out[k] = float(out[k])
     if out.get("war_id") is not None:
         out["war_id"] = int(out["war_id"])
-    if out.get("stars") is not None:
+    if "stars" in out and out["stars"] is not None:
         out["stars"] = int(out["stars"])
     if out.get("attack_order") is not None:
         out["attack_order"] = int(out["attack_order"])
@@ -84,6 +85,27 @@ def _coerce_rpc_row(row: dict[str, Any]) -> dict[str, Any]:
     if out.get("destruction_percentage") is not None:
         out["destruction_percentage"] = float(out["destruction_percentage"])
     return out
+
+
+def _history_row_ts(row: dict[str, Any]) -> float:
+    raw = row.get("start_time")
+    if not raw or not isinstance(raw, str):
+        return 0.0
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _sort_history_rows(rows: list[dict[str, Any]]) -> None:
+    """Newest war first; within a war ascending attack_order (missed rows sort last)."""
+    rows.sort(
+        key=lambda r: (
+            -_history_row_ts(r),
+            -(int(r.get("war_id") or 0)),
+            int(r.get("attack_order") or 0),
+        ),
+    )
 
 
 def _sort_leaderboard_rows(
@@ -116,17 +138,20 @@ def war_player_stats(
     clan_tag: str = Query(..., min_length=1),
     sort: str = Query("avg_offense_stars"),
     order: Literal["asc", "desc"] = Query("desc"),
-    last_wars: int | None = Query(None, description="Last N ended wars by start time; omit or null = all"),
+    last_attacks: int | None = Query(
+        None,
+        description="Last N offensive swings and last N defensive rows per player; omit or null = all",
+    ),
 ):
     """Aggregated war performance per player for one tracked clan (ended wars)."""
     db = get_db()
     normalized = _normalize_clan_tag(clan_tag)
-    if last_wars is not None and last_wars not in _WAR_LEADERBOARD_LAST_WARS:
+    if last_attacks is not None and last_attacks not in _WAR_LEADERBOARD_LAST_ATTACKS:
         raise HTTPException(
             status_code=400,
             detail={
-                "error": "invalid_last_wars",
-                "hint": "last_wars must be one of: 5, 10, 15, or omitted for all wars",
+                "error": "invalid_last_attacks",
+                "hint": "last_attacks must be one of: 5, 10, 15, or omitted for all ended wars",
             },
         )
     if sort not in _SORT_FIELDS:
@@ -146,13 +171,13 @@ def war_player_stats(
             "clan_tag": normalized,
             "sort": sort,
             "order": order,
-            "last_wars": last_wars,
+            "last_attacks": last_attacks,
         },
     )
 
     rpc_args: dict[str, Any] = {"p_clan_tag": normalized}
-    if last_wars is not None:
-        rpc_args["p_max_wars"] = last_wars
+    if last_attacks is not None:
+        rpc_args["p_max_attacks"] = last_attacks
     resp = db.rpc("war_player_leaderboard_stats", rpc_args).execute()
     raw = resp.data or []
     rows = [_coerce_rpc_row(dict(r)) for r in raw]
@@ -163,7 +188,7 @@ def war_player_stats(
         "clan_tag": normalized,
         "sort": sort,
         "order": order,
-        "last_wars": last_wars,
+        "last_attacks": last_attacks,
     }
 
 
@@ -171,18 +196,21 @@ def war_player_stats(
 def war_player_history(
     tag: str,
     clan_tag: str = Query(..., min_length=1),
-    last_wars: int | None = Query(None, description="Last N ended wars; omit or null = all"),
+    last_attacks: int | None = Query(
+        None,
+        description="Last N offense rows and last N defense rows for this player; omit or null = all",
+    ),
 ):
     """Offense and defense attack rows for one player in one tracked clan."""
     db = get_db()
     normalized_clan = _normalize_clan_tag(clan_tag)
     player_tag = _normalize_player_tag(tag)
-    if last_wars is not None and last_wars not in _WAR_LEADERBOARD_LAST_WARS:
+    if last_attacks is not None and last_attacks not in _WAR_LEADERBOARD_LAST_ATTACKS:
         raise HTTPException(
             status_code=400,
             detail={
-                "error": "invalid_last_wars",
-                "hint": "last_wars must be one of: 5, 10, 15, or omitted for all wars",
+                "error": "invalid_last_attacks",
+                "hint": "last_attacks must be one of: 5, 10, 15, or omitted for all ended wars",
             },
         )
     _assert_tracked_clan(db, normalized_clan)
@@ -193,7 +221,7 @@ def war_player_history(
             "event": "api.wars.player_history",
             "clan_tag": normalized_clan,
             "player_tag": player_tag,
-            "last_wars": last_wars,
+            "last_attacks": last_attacks,
         },
     )
 
@@ -201,21 +229,33 @@ def war_player_history(
         "p_clan_tag": normalized_clan,
         "p_player_tag": player_tag,
     }
-    if last_wars is not None:
-        rpc_hist["p_max_wars"] = last_wars
+    if last_attacks is not None:
+        rpc_hist["p_max_attacks"] = last_attacks
     resp = db.rpc("war_player_attack_history", rpc_hist).execute()
     raw = resp.data or []
     rows = [_coerce_rpc_row(dict(r)) for r in raw]
 
-    def _strip_kind(row: dict[str, Any]) -> dict[str, Any]:
-        return {k: v for k, v in row.items() if k != "kind"}
+    def _history_row(row: dict[str, Any]) -> dict[str, Any]:
+        kind = row.get("kind")
+        out = {k: v for k, v in row.items() if k != "kind"}
+        if kind == "missed":
+            out["missed_attack"] = True
+        return out
 
-    offenses = [_strip_kind(r) for r in rows if r.get("kind") == "offense"]
-    defenses = [_strip_kind(r) for r in rows if r.get("kind") == "defense"]
+    offenses: list[dict[str, Any]] = []
+    defenses: list[dict[str, Any]] = []
+    for r in rows:
+        k = r.get("kind")
+        if k in ("offense", "missed"):
+            offenses.append(_history_row(r))
+        elif k == "defense":
+            defenses.append(_history_row(r))
+    _sort_history_rows(offenses)
+    _sort_history_rows(defenses)
     return {
         "player_tag": player_tag,
         "clan_tag": normalized_clan,
-        "last_wars": last_wars,
+        "last_attacks": last_attacks,
         "offenses": offenses,
         "defenses": defenses,
     }

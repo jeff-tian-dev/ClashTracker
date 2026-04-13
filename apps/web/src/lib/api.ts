@@ -74,19 +74,19 @@ export const api = {
     clan_tag: string;
     sort?: string;
     order?: "asc" | "desc";
-    /** Last N ended wars for this clan; omit for all wars. */
-    last_wars?: 5 | 10 | 15;
+    /** Last N offensive swings and last N defensive rows per player; omit for all. */
+    last_attacks?: 5 | 10 | 15;
   }) => {
     const q = new URLSearchParams();
     q.set("clan_tag", params.clan_tag);
     if (params.sort != null && params.sort !== "") q.set("sort", params.sort);
     if (params.order != null) q.set("order", params.order);
-    if (params.last_wars != null) q.set("last_wars", String(params.last_wars));
+    if (params.last_attacks != null) q.set("last_attacks", String(params.last_attacks));
     return request<WarPlayerStatsResponse>(`/api/wars/player-stats?${q}`);
   },
-  warPlayerHistory: (tag: string, clan_tag: string, opts?: { last_wars?: 5 | 10 | 15 }) => {
+  warPlayerHistory: (tag: string, clan_tag: string, opts?: { last_attacks?: 5 | 10 | 15 }) => {
     const q = new URLSearchParams({ clan_tag });
-    if (opts?.last_wars != null) q.set("last_wars", String(opts.last_wars));
+    if (opts?.last_attacks != null) q.set("last_attacks", String(opts.last_attacks));
     return request<WarPlayerHistoryResponse>(
       `/api/wars/players/${encodeURIComponent(tag)}/history?${q}`,
     );
@@ -253,27 +253,29 @@ export interface WarPlayerStatsResponse {
   clan_tag: string;
   sort: string;
   order: "asc" | "desc";
-  /** Echo of request: null when all wars were included. */
-  last_wars: 5 | 10 | 15 | null;
+  /** Echo of request: null when all attacks were included. */
+  last_attacks: 5 | 10 | 15 | null;
 }
 
 export interface WarPlayerHistoryAttackRow {
   war_id: number;
   start_time: string;
   opponent_name: string | null;
-  stars: number;
-  destruction_percentage: number;
+  stars: number | null;
+  destruction_percentage: number | null;
   attack_order: number;
   duration: number | null;
   attacker_tag: string;
   defender_tag: string;
   is_home_attacker: boolean;
+  /** Synthetic missed slot from RPC; excluded from offense averages. */
+  missed_attack?: boolean;
 }
 
 export interface WarPlayerHistoryResponse {
   player_tag: string;
   clan_tag: string;
-  last_wars: 5 | 10 | 15 | null;
+  last_attacks: 5 | 10 | 15 | null;
   offenses: WarPlayerHistoryAttackRow[];
   defenses: WarPlayerHistoryAttackRow[];
 }

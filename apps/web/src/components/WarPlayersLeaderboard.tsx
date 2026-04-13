@@ -25,7 +25,11 @@ import {
 } from "../lib/dialogClasses";
 
 /** Deliberate low-effort hit (loot practice / dip). */
-function isFarmingHit(stars: number, destructionPct: number): boolean {
+function isFarmingHit(
+  stars: number | null | undefined,
+  destructionPct: number | null | undefined,
+): boolean {
+  if (stars == null || destructionPct == null) return false;
   return stars === 1 && destructionPct < 40;
 }
 
@@ -87,7 +91,7 @@ function parseWarWindow(raw: string | null): WarWindow {
   return "all";
 }
 
-function warWindowApiArg(w: WarWindow): 5 | 10 | 15 | undefined {
+function attackWindowApiArg(w: WarWindow): 5 | 10 | 15 | undefined {
   return w === "all" ? undefined : w;
 }
 
@@ -137,14 +141,16 @@ function HistoryTable({
           </Table.Header>
           <Table.Body>
             {rows.map((r, idx) => {
-              const farming = isFarmingHit(r.stars, r.destruction_percentage);
+              const missed = Boolean(r.missed_attack);
+              const farming = !missed && isFarmingHit(r.stars, r.destruction_percentage);
               const rowMuted =
-                farming
+                farming || missed
                   ? "opacity-[0.72] [&_td]:text-[var(--gray-11)]"
                   : "";
-              const linkClass = farming
-                ? "text-[var(--gray-11)] hover:underline hover:text-[var(--gray-12)]"
-                : "text-[var(--accent-11)] hover:underline";
+              const linkClass =
+                farming || missed
+                  ? "text-[var(--gray-11)] hover:underline hover:text-[var(--gray-12)]"
+                  : "text-[var(--accent-11)] hover:underline";
               return (
                 <Table.Row key={`${r.war_id}-${r.attack_order}-${idx}`} className={rowMuted}>
                   <Table.Cell>
@@ -156,15 +162,27 @@ function HistoryTable({
                     {r.start_time ? new Date(r.start_time).toLocaleDateString() : "—"}
                   </Table.Cell>
                   <Table.Cell>
-                    {mode === "offense" ? r.defender_tag : r.attacker_tag}
+                    {mode === "offense"
+                      ? missed
+                        ? "—"
+                        : r.defender_tag
+                      : r.attacker_tag}
                   </Table.Cell>
                   <Table.Cell>
-                    <Stars count={r.stars} />
+                    {r.stars != null ? <Stars count={r.stars} /> : "—"}
                   </Table.Cell>
-                  <Table.Cell>{r.destruction_percentage.toFixed(1)}%</Table.Cell>
+                  <Table.Cell>
+                    {r.destruction_percentage != null
+                      ? `${r.destruction_percentage.toFixed(1)}%`
+                      : "—"}
+                  </Table.Cell>
                   <Table.Cell>{r.duration != null ? `${r.duration}s` : "—"}</Table.Cell>
                   <Table.Cell>
-                    {farming ? (
+                    {missed ? (
+                      <Badge size="1" color="gray" variant="surface">
+                        Missed attack
+                      </Badge>
+                    ) : farming ? (
                       <Badge size="1" color="gray" variant="surface">
                         Farming attack
                       </Badge>
@@ -210,13 +228,13 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
     if (!clanTag) return;
     setLoading(true);
     setError(null);
-    const lw = warWindowApiArg(warWindow);
+    const la = attackWindowApiArg(warWindow);
     api
       .warPlayerStats({
         clan_tag: clanTag,
         sort: sortField,
         order: sortOrder,
-        ...(lw != null ? { last_wars: lw } : {}),
+        ...(la != null ? { last_attacks: la } : {}),
       })
       .then((res) => setEntries(res.data))
       .catch((err: unknown) => {
@@ -237,8 +255,8 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
     setOffenses([]);
     setDefenses([]);
     try {
-      const lw = warWindowApiArg(warWindow);
-      const res = await api.warPlayerHistory(tag, clanTag, lw != null ? { last_wars: lw } : {});
+      const la = attackWindowApiArg(warWindow);
+      const res = await api.warPlayerHistory(tag, clanTag, la != null ? { last_attacks: la } : {});
       setOffenses(res.offenses);
       setDefenses(res.defenses);
     } catch {
@@ -268,11 +286,14 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
   return (
     <Box>
       <Text size="1" color="gray" mb="3" as="p">
-        Farming hits (1 star and under 40% destruction) are excluded from these stats. They still appear in the player history popup.
+        Farming hits (1 star and under 40% destruction) are excluded from averages and attack counts.
+        They still appear in history. Missed attacks appear in history and only affect the Missed column.
+        When limited, each player uses their last N offensive swings and last N defensive rows (by war
+        date).
       </Text>
       <Flex align="center" gap="3" wrap="wrap" mb="4">
         <Text size="2" weight="medium">
-          Wars
+          Window
         </Text>
         <Select.Root
           value={warWindow === "all" ? "all" : String(warWindow)}
@@ -291,10 +312,10 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
         >
           <Select.Trigger />
           <Select.Content position="popper">
-            <Select.Item value="all">All wars</Select.Item>
-            <Select.Item value="5">Last 5 wars</Select.Item>
-            <Select.Item value="10">Last 10 wars</Select.Item>
-            <Select.Item value="15">Last 15 wars</Select.Item>
+            <Select.Item value="all">All attacks</Select.Item>
+            <Select.Item value="5">Last 5 attacks</Select.Item>
+            <Select.Item value="10">Last 10 attacks</Select.Item>
+            <Select.Item value="15">Last 15 attacks</Select.Item>
           </Select.Content>
         </Select.Root>
         <Text size="2" weight="medium">
@@ -389,7 +410,9 @@ export function WarPlayersLeaderboard({ clanTag }: { clanTag: string }) {
               <Dialog.Title>{detailName || selectedTag}</Dialog.Title>
               <Dialog.Description size="2" color="gray" mb="3">
                 War history for {selectedTag}
-                {warWindow === "all" ? " (all ended wars)" : ` (last ${warWindow} wars)`}
+                {warWindow === "all"
+                  ? " (all ended wars)"
+                  : ` (last ${warWindow} offense + last ${warWindow} defense rows)`}
               </Dialog.Description>
               {detailLoading ? (
                 <Text size="2" color="gray" mb="2">
