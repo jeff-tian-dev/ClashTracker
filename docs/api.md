@@ -105,11 +105,18 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/legends` | No | Today's leaderboard: per-player attack/defense totals, ranks, tracked status |
+| `GET` | `/api/legends` | No | Leaderboard for a legends day: per-player attack/defense totals, ranks, tracked status |
+| `GET` | `/api/legends/days` | No | Distinct legends days in the current season (newest first), for the leaderboard picker |
 | `GET` | `/api/legends/{tag}/days` | No | Available legends days for a player |
 | `GET` | `/api/legends/{tag}` | No | Player's attacks and defenses for a legends day |
 
+**Query params** (`/api/legends`): `legends_day` (YYYY-MM-DD, defaults to current). Returns `400 out_of_season` when the day is earlier than the current Legends season start (see `apps/shared/legends_roster.CURRENT_LEGENDS_SEASON_START`). Returns `404 legends_day_hidden` for dedup archive days. Returns `400 invalid_legends_day` for malformed dates.
+
 **Query params** (`/api/legends/{tag}`): `legends_day` (YYYY-MM-DD, defaults to current)
+
+**Roster rule for `/api/legends`**:
+- **Current day**: roster = players whose `league_name` is "Legend League" (live roster), padded with any battle attackers/defenders.
+- **Past day in-season**: roster = (players who have battles that day) UNION (currently tracked players). Always-tracked pins without battles appear as zero-battle rows so the UI can still grey them appropriately.
 
 **`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list).
 

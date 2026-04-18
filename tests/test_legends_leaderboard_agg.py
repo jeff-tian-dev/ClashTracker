@@ -1,4 +1,4 @@
-"""Unit tests for legends leaderboard battle aggregation."""
+"""Unit tests for legends leaderboard battle aggregation + API validation."""
 
 from __future__ import annotations
 
@@ -26,3 +26,17 @@ def test_aggregate_adds_roster_placeholder_with_zero_counts():
     assert agg["#Y"]["defense_total"] == 0
     assert agg["#Y"]["attack_battle_count"] == 0
     assert agg["#Y"]["defense_battle_count"] == 0
+
+
+def test_legends_leaderboard_rejects_out_of_season_day(client):
+    r = client.get("/api/legends?legends_day=2020-01-01")
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert detail["error"] == "out_of_season"
+
+
+def test_legends_leaderboard_rejects_invalid_day_format(client):
+    r = client.get("/api/legends?legends_day=not-a-date")
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert detail["error"] == "invalid_legends_day"

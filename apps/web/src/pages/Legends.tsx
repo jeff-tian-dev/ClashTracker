@@ -34,6 +34,13 @@ function filterVisibleLegendsDays(days: string[]): string[] {
   return days.filter((d) => !HIDDEN_LEGENDS_DAYS.has(d));
 }
 
+function formatBattleSeenAt(iso: string | undefined): string {
+  if (iso == null || iso === "") return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString();
+}
+
 function Stars({ count }: { count: number }) {
   return (
     <Flex gap="1" align="center">
@@ -496,6 +503,9 @@ export function Legends() {
   const { isAdmin, adminKey } = useAdmin();
   const [entries, setEntries] = useState<LegendsLeaderboardEntry[]>([]);
   const [legendsDay, setLegendsDay] = useState("");
+  const [currentLegendsDay, setCurrentLegendsDay] = useState("");
+  const [selectedDay, setSelectedDay] = useState("");
+  const [leaderboardDays, setLeaderboardDays] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -506,6 +516,8 @@ export function Legends() {
   const [modalSelectedDay, setModalSelectedDay] = useState("");
   const [julyOnly, setJulyOnly] = useState(false);
   const [aprilPush, setAprilPush] = useState(false);
+
+  const isViewingPastDay = selectedDay !== "" && selectedDay !== currentLegendsDay;
 
   const displayBlocks = useMemo(
     () => buildLegendsDisplayBlocks(entries, julyOnly, aprilPush),
@@ -518,10 +530,47 @@ export function Legends() {
   );
 
   useEffect(() => {
+    // Initial load: fetch leaderboard for today + the season's day list in parallel.
+    setLoading(true);
+    setLoadError(null);
+    let cancelled = false;
+    Promise.all([api.legends(), api.legendsDays()])
+      .then(([res, daysRes]) => {
+        if (cancelled) return;
+        setLoadError(null);
+        setEntries(res.data);
+        setLegendsDay(res.legends_day);
+        setCurrentLegendsDay(res.legends_day);
+        setSelectedDay(res.legends_day);
+        const visible = filterVisibleLegendsDays(
+          Array.from(new Set([res.legends_day, ...daysRes.legends_days])).sort((a, b) =>
+            b.localeCompare(a),
+          ),
+        );
+        setLeaderboardDays(visible);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setEntries([]);
+        setLegendsDay("");
+        setLeaderboardDays([]);
+        setLoadError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function handleLeaderboardDayChange(day: string) {
+    if (day === selectedDay) return;
+    setSelectedDay(day);
     setLoading(true);
     setLoadError(null);
     api
-      .legends()
+      .legends(day)
       .then((res) => {
         setLoadError(null);
         setEntries(res.data);
@@ -529,18 +578,17 @@ export function Legends() {
       })
       .catch((err: unknown) => {
         setEntries([]);
-        setLegendsDay("");
         setLoadError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }
 
   async function openDetail(tag: string) {
     setSelectedTag(tag);
     setDetailLoading(true);
     setDetail(null);
     setAvailableLegendsDays([]);
-    const initialDay = legendsDay || undefined;
+    const initialDay = selectedDay || legendsDay || undefined;
     if (initialDay) setModalSelectedDay(initialDay);
     try {
       const [daysRes, detailRes] = await Promise.all([
@@ -592,11 +640,36 @@ export function Legends() {
   return (
     <Box>
       <Flex align="center" justify="between" gap="4" wrap="wrap" mb="4">
-        <Flex align="baseline" gap="3" wrap="wrap">
+        <Flex align="center" gap="3" wrap="wrap">
           <Heading size="6">Legends League</Heading>
-          {legendsDay && (
+          {leaderboardDays.length > 0 ? (
+            <Flex align="center" gap="2">
+              <Text size="2" color="gray">
+                Day
+              </Text>
+              <Select.Root
+                value={selectedDay}
+                onValueChange={handleLeaderboardDayChange}
+                disabled={loading}
+              >
+                <Select.Trigger placeholder="Select day" />
+                <Select.Content position="popper">
+                  {leaderboardDays.map((d) => (
+                    <Select.Item key={d} value={d}>
+                      {d === currentLegendsDay ? `${d} (today)` : d}
+                    </Select.Item>
+                  ))}
+                </Select.Content>
+              </Select.Root>
+            </Flex>
+          ) : legendsDay ? (
             <Text size="2" color="gray">
               Day: {legendsDay}
+            </Text>
+          ) : null}
+          {isViewingPastDay && (
+            <Text size="2" color="gray">
+              Viewing past legends day
             </Text>
           )}
         </Flex>
@@ -734,7 +807,13 @@ export function Legends() {
           </Text>
         </Callout.Root>
       ) : entries.length === 0 ? (
-        <EmptyState message="No players in Legends League in the roster yet." />
+        <EmptyState
+          message={
+            isViewingPastDay
+              ? `No Legends battles recorded for ${selectedDay}.`
+              : "No players in Legends League in the roster yet."
+          }
+        />
       ) : (
         <LegendsLeaderboardTable
           displayBlocks={displayBlocks}

@@ -142,7 +142,14 @@ export const api = {
   removeTrackedPlayer: (tag: string, key: string) =>
     authedRequest<void>(`/api/tracked-players/${encodeURIComponent(tag)}`, key, { method: "DELETE" }),
 
-  legends: () => request<LegendsLeaderboard>("/api/legends"),
+  legends: (legendsDay?: string) => {
+    const qs =
+      legendsDay != null && legendsDay !== ""
+        ? `?legends_day=${encodeURIComponent(legendsDay)}`
+        : "";
+    return request<LegendsLeaderboard>(`/api/legends${qs}`);
+  },
+  legendsDays: () => request<{ legends_days: string[] }>("/api/legends/days"),
   legendsPlayerDays: (tag: string) =>
     request<{ legends_days: string[] }>(`/api/legends/${encodeURIComponent(tag)}/days`),
   legendsPlayer: (tag: string, legendsDay?: string) => {

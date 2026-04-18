@@ -67,6 +67,14 @@ def is_always_tracked_legends_roster_player(db, tag: str) -> bool:
 
 _LEGENDS_RESET_HOUR_UTC = 5  # 1 AM EST = 5 AM UTC
 
+# Start date (CoC legends-day) of the CURRENT Legends season.
+# Legend League tournaments run on a 4-week cycle, normally ending on the last
+# Monday of the month at 05:00 UTC. Atypical seasons (e.g. the Apr 2026
+# Migration Week for the Legend League rework) shift these dates, so we
+# hardcode the start and update it when a new season begins.
+# Next scheduled update: 2026-04-20 (new season start).
+CURRENT_LEGENDS_SEASON_START: date = date(2026, 3, 23)
+
 
 def legends_day_containing_utc(when: datetime) -> date:
     """Map a UTC instant to the CoC legends calendar date (reset at 5:00 UTC)."""
@@ -86,4 +94,9 @@ def current_legends_day() -> date:
     the "current" day is still the previous calendar date.
     """
     return legends_day_containing_utc(datetime.now(timezone.utc))
+
+
+def legends_season_start() -> date:
+    """Return the start date of the current Legends season (inclusive)."""
+    return CURRENT_LEGENDS_SEASON_START
 
