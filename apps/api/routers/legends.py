@@ -18,8 +18,9 @@ logger = logging.getLogger(__name__)
 # Dedup-only archive dates (e.g. rows moved off the live day) — omit from player day picker.
 _HIDDEN_FROM_LEGENDS_DAY_PICKER: frozenset[str] = frozenset({"2026-03-22"})
 
-# PostgREST page size for distinct-day scans; bigger than one full season of battle rows.
-_LEGENDS_DAYS_PAGE = 10000
+# PostgREST default response cap is 1000 rows per request — match it so our exit condition
+# (`len(chunk) < page`) correctly distinguishes "final partial page" from "PostgREST truncated us".
+_LEGENDS_DAYS_PAGE = 1000
 
 
 # _current_legends_day is imported from shared.legends_roster
