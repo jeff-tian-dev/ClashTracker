@@ -122,6 +122,7 @@ Located in `supabase/migrations/`, ordered `001`–`020`:
 | 018 | `018_war_player_stats_attack_window.sql` | RPCs use `p_max_attacks` (last N offense + last N defense rows per player); history adds `missed` rows; API query `last_attacks`. Hosted DB may list this DDL as two applied migrations (`war_player_stats_attack_window_leaderboard` + `_history`) if applied via Supabase MCP in two steps. |
 | 019 | `019_war_player_attack_window_param_bind.sql` | Window `WHERE` uses `(SELECT p_max_attacks)` so the limit binds correctly inside `RETURNS TABLE` RPC bodies. |
 | 020 | `020_war_missed_count_all_swings.sql` | Missed slots use all home offensive swings (farming included) so history does not duplicate farming rows as synthetic missed. |
+| 021 | `021_legends_day_snapshots.sql` | `legends_day_snapshots` table: per-player end-of-day trophy snapshot used by `/api/legends` for accurate historical `final_trophies` / `initial_trophies`. |
 
 ---
 

@@ -190,6 +190,23 @@ Legends League daily battle tracking.
 
 ---
 
+### `legends_day_snapshots`
+Per-player, per-legends-day trophy snapshot. Ingestion upserts one row per Legends-roster player on every run. On conflict (same `player_tag` + `legends_day`) the row is overwritten, so the **last** snapshot written before the 5:00 UTC daily reset becomes that day's authoritative `final_trophies`. The next ingestion run after the reset inserts a **new** row for the new legends_day, leaving the previous day frozen.
+
+Read by `GET /api/legends?legends_day=YYYY-MM-DD` for past days: stored `trophies` is the final trophy count; `initial_trophies = trophies − (attack_total − defense_total)`.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `player_tag` | TEXT FK → `players.tag` | `ON DELETE CASCADE` |
+| `legends_day` | DATE | |
+| `trophies` | INT | Latest observed trophies for the player on this legends_day |
+| `snapshot_at` | TIMESTAMPTZ DEFAULT NOW() | Time of the last overwriting upsert |
+
+**Primary key**: `(player_tag, legends_day)`
+**Indexes**: `(legends_day)`
+
+---
+
 ### `legends_battlelog_cursor`
 Per-player cursor for legend-type battle log deduplication.
 

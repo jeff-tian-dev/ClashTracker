@@ -417,6 +417,24 @@ def upsert_legends_battle(row: dict) -> None:
     ).execute()
 
 
+def upsert_legends_day_snapshot(player_tag: str, legends_day: str, trophies: int) -> None:
+    """Record the latest observed trophy count for a player on a given legends_day.
+
+    Called from ingestion on every run. On conflict the row is overwritten, so the
+    LAST snapshot written before the 5:00 UTC daily reset becomes that day's
+    authoritative ``final_trophies`` (see docs/database.md).
+    """
+    get_db().table("legends_day_snapshots").upsert(
+        {
+            "player_tag": player_tag,
+            "legends_day": legends_day,
+            "trophies": int(trophies),
+            "snapshot_at": _now_iso(),
+        },
+        on_conflict="player_tag,legends_day",
+    ).execute()
+
+
 def upsert_legends_battles_batch(rows: list[dict]) -> None:
     if not rows:
         return

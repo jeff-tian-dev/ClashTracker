@@ -188,11 +188,35 @@ def legends_leaderboard(
         for p in player_resp.data or []:
             player_map[p["tag"]] = p
 
+    # For past days, use the frozen end-of-day trophy snapshot (see migration 021) so
+    # final_trophies reflects what the player had when the day ended — not their live
+    # trophies today. For the current day we keep using live `players.trophies` (the
+    # day isn't over yet so its final is inherently "latest observed").
+    snapshot_map: dict[str, int] = {}
+    if not is_current_day and player_tags:
+        for i in range(0, len(player_tags), _chunk):
+            batch = player_tags[i : i + _chunk]
+            snap_resp = (
+                db.table("legends_day_snapshots")
+                .select("player_tag, trophies")
+                .eq("legends_day", chosen_day)
+                .in_("player_tag", batch)
+                .execute()
+            )
+            for row in snap_resp.data or []:
+                snapshot_map[row["player_tag"]] = int(row["trophies"])
+
     rows = []
     for tag, totals in agg.items():
         player = player_map.get(tag, {})
         net = totals["attack_total"] - totals["defense_total"]
-        current_trophies = player.get("trophies", 0)
+        live_trophies = player.get("trophies", 0)
+        # Past days: prefer snapshot; fall back to live if no snapshot exists yet
+        # (covers legends_days that predate the snapshot feature).
+        if not is_current_day and tag in snapshot_map:
+            final_trophies = snapshot_map[tag]
+        else:
+            final_trophies = live_trophies
         rows.append({
             "player_tag": tag,
             "name": player.get("name", tag),
@@ -201,8 +225,8 @@ def legends_leaderboard(
             "attack_battle_count": totals["attack_battle_count"],
             "defense_battle_count": totals["defense_battle_count"],
             "net": net,
-            "initial_trophies": current_trophies - net,
-            "final_trophies": current_trophies,
+            "initial_trophies": final_trophies - net,
+            "final_trophies": final_trophies,
             "has_battles": tag in tags_with_battles,
             "is_always_tracked": tag in always_tracked_tags,
             "tracking_group": tag_to_tracking_group.get(tag) if tag in always_tracked_tags else None,
@@ -290,10 +314,26 @@ def legends_player_detail(
     attacks = [b for b in battles if b["is_attack"]]
     defenses = [b for b in battles if not b["is_attack"]]
 
+    # For past days, prefer the end-of-day snapshot so the header reflects the day
+    # being viewed rather than the player's live trophies today.
+    display_trophies = player["trophies"]
+    if not is_current_legends_day:
+        snap_resp = (
+            db.table("legends_day_snapshots")
+            .select("trophies")
+            .eq("player_tag", tag)
+            .eq("legends_day", chosen)
+            .limit(1)
+            .execute()
+        )
+        snap_rows = snap_resp.data or []
+        if snap_rows:
+            display_trophies = int(snap_rows[0]["trophies"])
+
     return {
         "player_tag": tag,
         "player_name": player["name"],
-        "current_trophies": player["trophies"],
+        "current_trophies": display_trophies,
         "legends_day": chosen,
         "is_current_legends_day": is_current_legends_day,
         "attacks": attacks,

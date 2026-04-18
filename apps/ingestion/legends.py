@@ -201,6 +201,23 @@ def _ingest_player_legends(
     player_data = coc.get_player(client, player_tag)
     if player_data:
         db.upsert_player(player_data)
+        # Snapshot today's trophies for this player. Every run overwrites on conflict,
+        # so the last snapshot before the 5:00 UTC reset becomes the day's final_trophies.
+        trophies = player_data.get("trophies")
+        if trophies is not None:
+            try:
+                db.upsert_legends_day_snapshot(player_tag, legends_day_str, int(trophies))
+            except Exception:
+                logger.exception(
+                    "Failed to upsert legends day snapshot for %s",
+                    player_tag,
+                    extra={
+                        "event": "ingestion.legends.snapshot_error",
+                        "player_tag": player_tag,
+                        "legends_day": legends_day_str,
+                        "ingestion_run_id": get_ingestion_run_id(),
+                    },
+                )
 
     battles = coc.get_player_battlelog(client, player_tag)
     legend_battles = [b for b in battles if b.get("battleType") == "legend"]
