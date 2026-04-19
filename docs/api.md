@@ -120,8 +120,9 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 
 **Trophy source for `/api/legends`** (`final_trophies` / `initial_trophies`):
 - **Current day**: computed from the player's live `players.trophies` (`final = live`, `initial = live − net`). The day isn't over yet so "latest observed" is inherently the final.
-- **Past day**: uses `legends_day_snapshots.trophies` as the frozen end-of-day value. Ingestion upserts a snapshot every ~10 min per Legends player; the last write before the 5:00 UTC (1 AM EST) reset becomes the day's final. `initial = final − net`. Past days without a snapshot (e.g. predating migration `021`) fall back to live trophies.
-- `GET /api/legends/{tag}` returns `current_trophies` = the snapshot for the requested past day (if any); live trophies otherwise.
+- **Past day with snapshot**: uses `legends_day_snapshots.trophies` as the frozen end-of-day value. Ingestion upserts a snapshot every ~10 min per Legends player; the last write before the 5:00 UTC (1 AM EST) reset becomes the day's final. `initial = final − net`.
+- **Past day without snapshot** (e.g. days predating migration `021`): both `initial_trophies` and `final_trophies` are **`null`**. The UI renders these as "Unknown" — the API intentionally does NOT fall back to live trophies, because that would mis-report the player's current count as their end-of-that-day total.
+- `GET /api/legends/{tag}` returns `current_trophies` = the snapshot for the requested past day, or `null` when no snapshot exists; current-day requests always return live trophies.
 
 **`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list).
 

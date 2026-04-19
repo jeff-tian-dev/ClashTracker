@@ -188,10 +188,12 @@ def legends_leaderboard(
         for p in player_resp.data or []:
             player_map[p["tag"]] = p
 
-    # For past days, use the frozen end-of-day trophy snapshot (see migration 021) so
+    # For past days, use the frozen end-of-day trophy snapshot (migration 021) so
     # final_trophies reflects what the player had when the day ended — not their live
-    # trophies today. For the current day we keep using live `players.trophies` (the
-    # day isn't over yet so its final is inherently "latest observed").
+    # trophies today. Past days without a snapshot (predate the feature) return null
+    # for both initial_trophies and final_trophies; the UI renders them as "Unknown".
+    # Current day: keep using live `players.trophies` (the day isn't over so its
+    # final is inherently "latest observed").
     snapshot_map: dict[str, int] = {}
     if not is_current_day and player_tags:
         for i in range(0, len(player_tags), _chunk):
@@ -210,13 +212,13 @@ def legends_leaderboard(
     for tag, totals in agg.items():
         player = player_map.get(tag, {})
         net = totals["attack_total"] - totals["defense_total"]
-        live_trophies = player.get("trophies", 0)
-        # Past days: prefer snapshot; fall back to live if no snapshot exists yet
-        # (covers legends_days that predate the snapshot feature).
-        if not is_current_day and tag in snapshot_map:
+        if is_current_day:
+            final_trophies: int | None = player.get("trophies", 0)
+        elif tag in snapshot_map:
             final_trophies = snapshot_map[tag]
         else:
-            final_trophies = live_trophies
+            final_trophies = None
+        initial_trophies = None if final_trophies is None else final_trophies - net
         rows.append({
             "player_tag": tag,
             "name": player.get("name", tag),
@@ -225,7 +227,7 @@ def legends_leaderboard(
             "attack_battle_count": totals["attack_battle_count"],
             "defense_battle_count": totals["defense_battle_count"],
             "net": net,
-            "initial_trophies": final_trophies - net,
+            "initial_trophies": initial_trophies,
             "final_trophies": final_trophies,
             "has_battles": tag in tags_with_battles,
             "is_always_tracked": tag in always_tracked_tags,
@@ -234,7 +236,13 @@ def legends_leaderboard(
             "left_tracked_roster_at": player.get("left_tracked_roster_at"),
         })
 
-    rows.sort(key=lambda r: (-r["final_trophies"], -r["net"]))
+    # Sort rows with known trophies first (descending), then unknown-trophy rows by net.
+    def _sort_key(r: dict) -> tuple:
+        has_trophies = r["final_trophies"] is not None
+        # has_trophies=False should sort AFTER has_trophies=True: invert boolean via `not`.
+        return (not has_trophies, -(r["final_trophies"] or 0), -r["net"])
+
+    rows.sort(key=_sort_key)
     for i, row in enumerate(rows, 1):
         row["rank"] = i
 
@@ -315,8 +323,10 @@ def legends_player_detail(
     defenses = [b for b in battles if not b["is_attack"]]
 
     # For past days, prefer the end-of-day snapshot so the header reflects the day
-    # being viewed rather than the player's live trophies today.
-    display_trophies = player["trophies"]
+    # being viewed rather than the player's live trophies today. When no snapshot
+    # exists (past days predating migration 021), return None so the UI can display
+    # "Unknown" instead of misleading live trophies.
+    display_trophies: int | None = player["trophies"]
     if not is_current_legends_day:
         snap_resp = (
             db.table("legends_day_snapshots")
@@ -327,8 +337,7 @@ def legends_player_detail(
             .execute()
         )
         snap_rows = snap_resp.data or []
-        if snap_rows:
-            display_trophies = int(snap_rows[0]["trophies"])
+        display_trophies = int(snap_rows[0]["trophies"]) if snap_rows else None
 
     return {
         "player_tag": tag,

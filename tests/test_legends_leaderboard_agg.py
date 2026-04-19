@@ -42,39 +42,29 @@ def test_legends_leaderboard_rejects_invalid_day_format(client):
     assert detail["error"] == "invalid_legends_day"
 
 
-def test_past_day_uses_snapshot_for_final_trophies(client, monkeypatch):
-    """For past legends_day, final_trophies comes from legends_day_snapshots (not live)."""
+class _Resp:
+    def __init__(self, data):
+        self.data = data
 
-    # Past day within the current Legends season (2026-03-23 season start per shared helper).
-    past_day = "2026-03-25"
 
-    # Live trophies diverge from the snapshot (simulates a day having passed).
-    live_trophies = 5500
-    snapshot_trophies = 5200
-    attack_total = 80
-    defense_total = 30
-    expected_net = attack_total - defense_total
-    expected_initial = snapshot_trophies - expected_net
+def _make_chain(snapshot_rows: list[dict], *, attack_total: int, defense_total: int, live_trophies: int):
+    """Fake DB chain for the leaderboard endpoint; returns one player '#P1'."""
 
     class _Chain:
         def __init__(self):
             self._table: str | None = None
-            self._filters: dict = {}
 
         def table(self, name: str):
             self._table = name
-            self._filters = {}
             return self
 
         def select(self, *_a, **_k):
             return self
 
-        def eq(self, col: str, val):
-            self._filters[col] = val
+        def eq(self, *_a, **_k):
             return self
 
-        def in_(self, col: str, vals):
-            self._filters[col] = list(vals)
+        def in_(self, *_a, **_k):
             return self
 
         def order(self, *_a, **_k):
@@ -102,14 +92,32 @@ def test_past_day_uses_snapshot_for_final_trophies(client, monkeypatch):
                     {"tag": "#P1", "name": "TestPlayer", "trophies": live_trophies, "left_tracked_roster_at": None},
                 ])
             if t == "legends_day_snapshots":
-                return _Resp([{"player_tag": "#P1", "trophies": snapshot_trophies}])
+                return _Resp(list(snapshot_rows))
             return _Resp([])
 
-    class _Resp:
-        def __init__(self, data):
-            self.data = data
+    return _Chain()
 
-    monkeypatch.setattr("api.routers.legends.get_db", lambda: _Chain())
+
+def test_past_day_uses_snapshot_for_final_trophies(client, monkeypatch):
+    """For past legends_day, final_trophies comes from legends_day_snapshots (not live)."""
+
+    past_day = "2026-03-25"
+    live_trophies = 5500
+    snapshot_trophies = 5200
+    attack_total = 80
+    defense_total = 30
+    expected_net = attack_total - defense_total
+    expected_initial = snapshot_trophies - expected_net
+
+    monkeypatch.setattr(
+        "api.routers.legends.get_db",
+        lambda: _make_chain(
+            [{"player_tag": "#P1", "trophies": snapshot_trophies}],
+            attack_total=attack_total,
+            defense_total=defense_total,
+            live_trophies=live_trophies,
+        ),
+    )
 
     r = client.get(f"/api/legends?legends_day={past_day}")
     assert r.status_code == 200
@@ -122,3 +130,28 @@ def test_past_day_uses_snapshot_for_final_trophies(client, monkeypatch):
     assert row["final_trophies"] == snapshot_trophies, "past-day final_trophies must come from snapshot, not live"
     assert row["initial_trophies"] == expected_initial
     assert row["net"] == expected_net
+
+
+def test_past_day_without_snapshot_returns_unknown_trophies(client, monkeypatch):
+    """Past legends_day with no snapshot returns null trophies (UI renders 'Unknown')."""
+
+    past_day = "2026-03-25"
+
+    monkeypatch.setattr(
+        "api.routers.legends.get_db",
+        lambda: _make_chain(
+            [],
+            attack_total=80,
+            defense_total=30,
+            live_trophies=5500,
+        ),
+    )
+
+    r = client.get(f"/api/legends?legends_day={past_day}")
+    assert r.status_code == 200
+    rows = r.json()["data"]
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["final_trophies"] is None, "no snapshot → unknown (must not fall back to live)"
+    assert row["initial_trophies"] is None
+    assert row["net"] == 50

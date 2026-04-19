@@ -54,7 +54,13 @@ function Stars({ count }: { count: number }) {
 }
 
 function compareLegendsTrophyOrder(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry) {
-  if (b.final_trophies !== a.final_trophies) return b.final_trophies - a.final_trophies;
+  // Unknown-trophy rows (past days predating the snapshot feature) sort to the bottom.
+  const aKnown = a.final_trophies !== null;
+  const bKnown = b.final_trophies !== null;
+  if (aKnown !== bKnown) return aKnown ? -1 : 1;
+  if (aKnown && bKnown && a.final_trophies !== b.final_trophies) {
+    return (b.final_trophies as number) - (a.final_trophies as number);
+  }
   return b.net - a.net;
 }
 
@@ -167,7 +173,8 @@ function buildLegendsDisplayBlocks(
 }
 
 function tieBreakWinner(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry): LegendsLeaderboardEntry {
-  if (a.final_trophies !== b.final_trophies) {
+  // When either side has unknown trophies, skip the trophy tiebreaker and fall back to name.
+  if (a.final_trophies !== null && b.final_trophies !== null && a.final_trophies !== b.final_trophies) {
     return a.final_trophies > b.final_trophies ? a : b;
   }
   return a.name.localeCompare(b.name) <= 0 ? a : b;
@@ -393,9 +400,19 @@ function LegendsLeaderboardTable({
                         )}
                       </Badge>
                     </Table.Cell>
-                    <Table.Cell>{e.initial_trophies.toLocaleString()}</Table.Cell>
                     <Table.Cell>
-                      <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
+                      {e.initial_trophies === null ? (
+                        <Text color="gray">Unknown</Text>
+                      ) : (
+                        e.initial_trophies.toLocaleString()
+                      )}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {e.final_trophies === null ? (
+                        <Text color="gray">Unknown</Text>
+                      ) : (
+                        <Text weight="medium">{e.final_trophies.toLocaleString()}</Text>
+                      )}
                     </Table.Cell>
                     {isAdmin && (
                       <Table.Cell
@@ -865,12 +882,20 @@ export function Legends() {
               <Dialog.Description size="2" color="gray" mb="4">
                 {detail.is_current_legends_day ? (
                   <>
-                    {detail.current_trophies.toLocaleString()} trophies — {detail.legends_day}
+                    {detail.current_trophies === null
+                      ? "Unknown"
+                      : detail.current_trophies.toLocaleString()}{" "}
+                    trophies — {detail.legends_day}
+                  </>
+                ) : detail.current_trophies === null ? (
+                  <>
+                    Viewing past legends day ({detail.legends_day}). End-of-day trophies unknown
+                    (this day predates trophy snapshotting).
                   </>
                 ) : (
                   <>
-                    Viewing past legends day ({detail.legends_day}). Profile trophy count is your
-                    current live value, not end-of-that-day.
+                    {detail.current_trophies.toLocaleString()} trophies — {detail.legends_day}{" "}
+                    (end-of-day)
                   </>
                 )}
               </Dialog.Description>

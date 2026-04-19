@@ -354,8 +354,10 @@ export interface LegendsLeaderboardEntry {
   /** Count of defense battle rows this legends day. */
   defense_battle_count: number;
   net: number;
-  initial_trophies: number;
-  final_trophies: number;
+  /** Null for past days without an end-of-day snapshot (predate migration 021). UI renders "Unknown". */
+  initial_trophies: number | null;
+  /** Null for past days without an end-of-day snapshot (predate migration 021). UI renders "Unknown". */
+  final_trophies: number | null;
   /** False when no battles this legends day; omit/true treated as activity (older API). */
   has_battles?: boolean;
   /** In tracked_players (any group). */
@@ -389,7 +391,8 @@ export interface LegendsBattle {
 export interface LegendsPlayerDetail {
   player_tag: string;
   player_name: string;
-  current_trophies: number;
+  /** Null for past days without an end-of-day snapshot. UI renders "Unknown". */
+  current_trophies: number | null;
   legends_day: string;
   is_current_legends_day: boolean;
   attacks: LegendsBattle[];
