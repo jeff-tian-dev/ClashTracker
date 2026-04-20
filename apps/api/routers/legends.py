@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 
@@ -21,6 +21,11 @@ _HIDDEN_FROM_LEGENDS_DAY_PICKER: frozenset[str] = frozenset({"2026-03-22"})
 # PostgREST default response cap is 1000 rows per request — match it so our exit condition
 # (`len(chunk) < page`) correctly distinguishes "final partial page" from "PostgREST truncated us".
 _LEGENDS_DAYS_PAGE = 1000
+_LEGENDS_BATTLES_PAGE = 1000
+
+# Players who left every tracked clan more than this long ago are hidden from the Legends
+# leaderboard entirely. Always-tracked pins (July roster / external) are exempt.
+_LEGENDS_HIDE_AFTER_LEFT = timedelta(days=3)
 
 
 # _current_legends_day is imported from shared.legends_roster
@@ -98,6 +103,84 @@ def _parse_legends_day_param(
     return chosen, chosen == current_str
 
 
+def _fetch_legends_battles_for_day(
+    db,
+    legends_day: str,
+    *,
+    exclude_tags: set[str] | None = None,
+) -> list[dict]:
+    """Page through `legends_battles` for one day, optionally excluding stale tags.
+
+    PostgREST caps a single request at ~1000 rows, but one legends day can exceed that
+    (82-player roster × up to 16 rows/player ≈ 1,300). Ordering by `id` guarantees no
+    duplicates or gaps across pages.
+
+    `exclude_tags` drops stale-leaver rows at the DB boundary so the fetch stays small
+    — see `_fetch_stale_leaver_tags`.
+    """
+    exclude = list(exclude_tags) if exclude_tags else []
+    rows: list[dict] = []
+    off = 0
+    while True:
+        q = (
+            db.table("legends_battles")
+            .select("player_tag, is_attack, trophies")
+            .eq("legends_day", legends_day)
+        )
+        if exclude:
+            q = q.not_.in_("player_tag", exclude)
+        q = q.order("id").range(off, off + _LEGENDS_BATTLES_PAGE - 1)
+        r = q.execute()
+        chunk = r.data or []
+        rows.extend(chunk)
+        if len(chunk) < _LEGENDS_BATTLES_PAGE:
+            break
+        off += _LEGENDS_BATTLES_PAGE
+    return rows
+
+
+def _fetch_stale_leaver_tags(db, always_tracked_tags: set[str], *, now: datetime) -> set[str]:
+    """Tags to exclude from the Legends leaderboard entirely.
+
+    A "stale leaver" is a player whose `left_tracked_roster_at` is set to more than
+    `_LEGENDS_HIDE_AFTER_LEFT` ago AND who is not on the always-tracked pin list.
+
+    Uses an `lt` filter on the indexed timestamp column; excluding these tags upstream
+    shaves the `legends_battles` fetch size (today's roster is ~60% ex-members of
+    tracked clans who remain in Legend League and thus still ingested).
+    """
+    cutoff_iso = (now - _LEGENDS_HIDE_AFTER_LEFT).isoformat()
+    resp = (
+        db.table("players")
+        .select("tag")
+        .lt("left_tracked_roster_at", cutoff_iso)
+        .execute()
+    )
+    candidate_tags = {row["tag"] for row in (resp.data or []) if row.get("tag")}
+    return candidate_tags - always_tracked_tags
+
+
+def _parse_iso_timestamp(value: object) -> datetime | None:
+    """Best-effort parse of Supabase `timestamptz` strings; returns None if unparseable."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _is_stale_left_roster(left_at: object, *, now: datetime) -> bool:
+    """True when the player left all tracked clans more than `_LEGENDS_HIDE_AFTER_LEFT` ago."""
+    dt = _parse_iso_timestamp(left_at)
+    if dt is None:
+        return False
+    return (now - dt) > _LEGENDS_HIDE_AFTER_LEFT
+
+
 def _fetch_distinct_legends_days_since(db, since_iso: str) -> set[str]:
     """Paginated scan of legends_battles.legends_day column (distinct via Python set)."""
     days: set[str] = set()
@@ -133,21 +216,23 @@ def legends_leaderboard(
         extra={"event": "api.db.query", "table": "legends_battles", "legends_day": chosen_day},
     )
 
-    resp = (
-        db.table("legends_battles")
-        .select("player_tag, is_attack, trophies")
-        .eq("legends_day", chosen_day)
-        .execute()
-    )
-    battles = resp.data or []
-
     tracked_rows = (
         db.table("tracked_players").select("player_tag,tracking_group,legends_bracket").execute().data or []
     )
     always_tracked_tags = {row["player_tag"] for row in tracked_rows}
 
+    # Compute the stale-leaver set once and apply it to every downstream fetch: excluding
+    # them at the DB boundary keeps today's `legends_battles` fetch well under the
+    # PostgREST page cap (~60% of today's battle writers have already left tracked clans
+    # but remain in Legend League, so they're still ingested).
+    stale_leaver_tags = _fetch_stale_leaver_tags(
+        db, always_tracked_tags, now=datetime.now(timezone.utc)
+    )
+
+    battles = _fetch_legends_battles_for_day(db, chosen_day, exclude_tags=stale_leaver_tags)
+
     if is_current_day:
-        roster_tags = fetch_legends_roster_tags(db)
+        roster_tags = [t for t in fetch_legends_roster_tags(db) if t not in stale_leaver_tags]
         if not roster_tags and battles:
             logger.warning(
                 "legends_leaderboard: roster query returned 0 Legend League players but battles exist "
@@ -235,6 +320,15 @@ def legends_leaderboard(
             "legends_bracket": tag_to_legends_bracket.get(tag) if tag in always_tracked_tags else None,
             "left_tracked_roster_at": player.get("left_tracked_roster_at"),
         })
+
+    # Drop rows for players who have been off every tracked clan roster for >3 days.
+    # Always-tracked pins (July / external) are exempt — they're pinned by admin intent.
+    now = datetime.now(timezone.utc)
+    rows = [
+        r for r in rows
+        if r["is_always_tracked"]
+        or not _is_stale_left_roster(r["left_tracked_roster_at"], now=now)
+    ]
 
     # Sort rows with known trophies first (descending), then unknown-trophy rows by net.
     def _sort_key(r: dict) -> tuple:

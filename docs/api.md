@@ -117,6 +117,9 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 **Roster rule for `/api/legends`**:
 - **Current day**: roster = players whose `league_name` is "Legend League" (live roster), padded with any battle attackers/defenders.
 - **Past day in-season**: roster = (players who have battles that day) UNION (currently tracked players). Always-tracked pins without battles appear as zero-battle rows so the UI can still grey them appropriately.
+- **Stale-leaver filter** (applies to all days): rows for non-pinned players whose `left_tracked_roster_at` is more than **3 days ago** are dropped at the DB layer via `.not_.in_("player_tag", stale_tags)` in `_fetch_legends_battles_for_day`, and also excluded from `roster_tags`. Always-tracked pins (July / external, `is_always_tracked=true`) are exempt. Rationale: most Legend-League tracked accounts stay ingested long after they leave tracked clans (ingestion keys off `players.league_name`), and excluding them upstream cuts the today fetch by ~30%.
+
+**Pagination note**: the leaderboard pages `legends_battles` in 1000-row chunks ordered by `id` (see `_fetch_legends_battles_for_day` in `apps/api/routers/legends.py`). A full-roster Legends day can exceed PostgREST's default single-response cap (~82 players × 16 rows ≈ 1,300), so any one-shot `.execute()` would silently undercount late-ingested battles. Pagination remains as defense-in-depth even after the stale-leaver filter brings today's fetch below the cap.
 
 **Trophy source for `/api/legends`** (`final_trophies` / `initial_trophies`):
 - **Current day**: computed from the player's live `players.trophies` (`final = live`, `initial = live − net`). The day isn't over yet so "latest observed" is inherently the final.
@@ -124,7 +127,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 - **Past day without snapshot** (e.g. days predating migration `021`): both `initial_trophies` and `final_trophies` are **`null`**. The UI renders these as "Unknown" — the API intentionally does NOT fall back to live trophies, because that would mis-report the player's current count as their end-of-that-day total.
 - `GET /api/legends/{tag}` returns `current_trophies` = the snapshot for the requested past day, or `null` when no snapshot exists; current-day requests always return live trophies.
 
-**`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list).
+**`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list). Rows that would be stale under the 3-day filter above never reach the client.
 
 ---
 
