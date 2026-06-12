@@ -7,7 +7,9 @@ from shared.legends_roster import (
     current_legends_day as _current_legends_day,
     fetch_legends_roster_tags,
     is_always_tracked_legends_roster_player,
+    legend_league_tier_number,
     legends_season_start,
+    player_in_legends_tab,
 )
 
 from ..database import get_db
@@ -217,14 +219,13 @@ def legends_leaderboard(
     )
 
     tracked_rows = (
-        db.table("tracked_players").select("player_tag,tracking_group,legends_bracket").execute().data or []
+        db.table("tracked_players").select("player_tag,tracking_group").execute().data or []
     )
     always_tracked_tags = {row["player_tag"] for row in tracked_rows}
 
     # Compute the stale-leaver set once and apply it to every downstream fetch: excluding
     # them at the DB boundary keeps today's `legends_battles` fetch well under the
-    # PostgREST page cap (~60% of today's battle writers have already left tracked clans
-    # but remain in Legend League, so they're still ingested).
+    # PostgREST page cap for days when many tracked players have recently left clans.
     stale_leaver_tags = _fetch_stale_leaver_tags(
         db, always_tracked_tags, now=datetime.now(timezone.utc)
     )
@@ -254,10 +255,6 @@ def legends_leaderboard(
     tag_to_tracking_group = {
         row["player_tag"]: (row.get("tracking_group") or "clan_july") for row in tracked_rows
     }
-    tag_to_legends_bracket: dict[str, int] = {}
-    for row in tracked_rows:
-        lb = row.get("legends_bracket")
-        tag_to_legends_bracket[row["player_tag"]] = 1 if lb not in (1, 2) else int(lb)
 
     player_tags = list(agg.keys())
     player_map: dict = {}
@@ -266,7 +263,7 @@ def legends_leaderboard(
         batch = player_tags[i : i + _chunk]
         player_resp = (
             db.table("players")
-            .select("tag, name, trophies, left_tracked_roster_at")
+            .select("tag, name, trophies, league_tier_id, left_tracked_roster_at")
             .in_("tag", batch)
             .execute()
         )
@@ -296,6 +293,8 @@ def legends_leaderboard(
     rows = []
     for tag, totals in agg.items():
         player = player_map.get(tag, {})
+        if not player_in_legends_tab({**player, "tag": tag}):
+            continue
         net = totals["attack_total"] - totals["defense_total"]
         if is_current_day:
             final_trophies: int | None = player.get("trophies", 0)
@@ -304,6 +303,8 @@ def legends_leaderboard(
         else:
             final_trophies = None
         initial_trophies = None if final_trophies is None else final_trophies - net
+        league_tier_id = player.get("league_tier_id")
+        legend_league_tier = legend_league_tier_number(league_tier_id)
         rows.append({
             "player_tag": tag,
             "name": player.get("name", tag),
@@ -317,7 +318,8 @@ def legends_leaderboard(
             "has_battles": tag in tags_with_battles,
             "is_always_tracked": tag in always_tracked_tags,
             "tracking_group": tag_to_tracking_group.get(tag) if tag in always_tracked_tags else None,
-            "legends_bracket": tag_to_legends_bracket.get(tag) if tag in always_tracked_tags else None,
+            "league_tier_id": league_tier_id,
+            "legend_league_tier": legend_league_tier,
             "left_tracked_roster_at": player.get("left_tracked_roster_at"),
         })
 

@@ -29,6 +29,7 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 - **API**: `apps/api/routers/players.py` → `GET /api/players`, `GET /api/players/{tag}`, `GET /api/players/{tag}/activity`, `DELETE /api/players/{tag}`
 - **Ingestion**: `apps/ingestion/db.py` → `upsert_player()`
 - **Activity chart data**: `apps/ingestion/player_activity.py`, `apps/web/src/components/AttackActivityHeatmap.tsx`
+- **Activity tracker (pasteable narrative context for AIs)**: `docs/player-activity-tracker.md`
 
 ### Wars (list + detail)
 - **UI list**: `apps/web/src/pages/Wars.tsx` (Logs / Players subtabs; player leaderboard `apps/web/src/components/WarPlayersLeaderboard.tsx`)
@@ -123,6 +124,7 @@ Located in `supabase/migrations/`, ordered `001`–`020`:
 | 019 | `019_war_player_attack_window_param_bind.sql` | Window `WHERE` uses `(SELECT p_max_attacks)` so the limit binds correctly inside `RETURNS TABLE` RPC bodies. |
 | 020 | `020_war_missed_count_all_swings.sql` | Missed slots use all home offensive swings (farming included) so history does not duplicate farming rows as synthetic missed. |
 | 021 | `021_legends_day_snapshots.sql` | `legends_day_snapshots` table: per-player end-of-day trophy snapshot used by `/api/legends` for accurate historical `final_trophies` / `initial_trophies`. |
+| 022 | `022_players_league_tier_id.sql` | `players.league_tier_id` for CoC Legend League tiers (shared name, distinct ids). |
 
 ---
 

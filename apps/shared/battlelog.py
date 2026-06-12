@@ -7,6 +7,20 @@ and detect new entries across ingestion runs.
 
 from __future__ import annotations
 
+# CoC renamed Legend League battle logs from ``legend`` to ``ranked`` (2026 league rework).
+_LEGEND_BATTLE_TYPES = frozenset({"legend", "ranked"})
+
+
+def is_legend_league_battle(b: dict) -> bool:
+    """True for Legend League entries in a player battle log (``legend`` or ``ranked``)."""
+    return (b.get("battleType") or "") in _LEGEND_BATTLE_TYPES
+
+
+def _normalize_battle_type_for_cursor(bt: str) -> str:
+    if bt in _LEGEND_BATTLE_TYPES:
+        return "legend"
+    return bt
+
 
 def canonical_snapshot(b: dict) -> dict:
     """Normalize a CoC battle-log entry to a hashable comparison dict."""
@@ -18,7 +32,7 @@ def canonical_snapshot(b: dict) -> dict:
     return {
         "battleTime": b.get("battleTime"),
         "opponentPlayerTag": b.get("opponentPlayerTag") or "",
-        "battleType": b.get("battleType") or "",
+        "battleType": _normalize_battle_type_for_cursor(b.get("battleType") or ""),
         "attack": attack_bool,
         "stars": int(b.get("stars", 0)),
         "destructionPercentage": int(b.get("destructionPercentage", 0)),

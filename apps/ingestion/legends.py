@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from shared.battlelog import canonical_snapshot, is_attack, snapshots_equal
+from shared.battlelog import canonical_snapshot, is_attack, is_legend_league_battle, snapshots_equal
 from shared.legends_roster import current_legends_day, legends_day_containing_utc
 from shared.logutil import get_ingestion_run_id, log_event
 
@@ -42,15 +42,20 @@ def collect_new_legends_since_cursor(
     return new_battles, found_cursor
 
 
-def ingest_legends(client) -> None:
-    """Fetch battle logs for all legends-league players and store new battles."""
+def ingest_legends(client, active_tags: set[str]) -> None:
+    """Fetch battle logs for tracked Legend League players and store new battles."""
     legends_day = current_legends_day()
     legends_day_str = legends_day.isoformat()
     now_iso = datetime.now(timezone.utc).isoformat()
 
-    _process_legends_confirmation_queue(client, legends_day_str, now_iso)
+    player_tags = db.get_legends_player_tags(active_tags)
+    allowed_tags = set(player_tags)
 
-    player_tags = db.get_legends_player_tags()
+    db.warm_legends_snapshot_cache(player_tags, legends_day_str)
+
+    _process_legends_confirmation_queue(
+        client, legends_day_str, now_iso, allowed_tags=allowed_tags
+    )
     if not player_tags:
         log_event(
             logger,
@@ -103,7 +108,13 @@ def ingest_legends(client) -> None:
     )
 
 
-def _process_legends_confirmation_queue(client, legends_day_str: str, now_iso: str) -> None:
+def _process_legends_confirmation_queue(
+    client,
+    legends_day_str: str,
+    now_iso: str,
+    *,
+    allowed_tags: set[str],
+) -> None:
     rows = db.fetch_due_legends_confirmations()
     if not rows:
         return
@@ -120,6 +131,17 @@ def _process_legends_confirmation_queue(client, legends_day_str: str, now_iso: s
     for row in rows:
         qid = row["id"]
         tag = row["player_tag"]
+        if tag not in allowed_tags:
+            db.delete_legends_confirmation_queue(qid)
+            log_event(
+                logger,
+                "ingestion.legends.confirmation.drop_untracked",
+                f"Dropped confirmation queue row for untracked player {tag}",
+                player_tag=tag,
+                queue_id=qid,
+                ingestion_run_id=get_ingestion_run_id(),
+            )
+            continue
         snap = row.get("cursor_snapshot")
         if not isinstance(snap, dict):
             snap = {} if snap is None else dict(snap)
@@ -201,8 +223,8 @@ def _ingest_player_legends(
     player_data = coc.get_player(client, player_tag)
     if player_data:
         db.upsert_player(player_data)
-        # Snapshot today's trophies for this player. Every run overwrites on conflict,
-        # so the last snapshot before the 5:00 UTC reset becomes the day's final_trophies.
+        # Snapshot today's trophies when they change; last write before 5:00 UTC reset
+        # becomes that day's final_trophies.
         trophies = player_data.get("trophies")
         if trophies is not None:
             try:
@@ -220,7 +242,7 @@ def _ingest_player_legends(
                 )
 
     battles = coc.get_player_battlelog(client, player_tag)
-    legend_battles = [b for b in battles if b.get("battleType") == "legend"]
+    legend_battles = [b for b in battles if is_legend_league_battle(b)]
     if not legend_battles:
         return
 
@@ -228,34 +250,32 @@ def _ingest_player_legends(
 
     if cursor_snapshot_override is not None:
         stored = dict(cursor_snapshot_override)
+        new_battles, found_cursor = collect_new_legends_since_cursor(legend_battles, stored)
     else:
         cursor_row = db.get_legends_battlelog_cursor(player_tag)
         if cursor_row is None:
-            db.upsert_legends_battlelog_cursor(player_tag, canonical_snapshot(newest_legend))
             log_event(
                 logger,
                 "ingestion.legends.baseline",
-                f"Legends battle log cursor for {player_tag} (no backfill)",
+                f"Legends battle log cursor for {player_tag} (backfill from API window)",
                 player_tag=player_tag,
                 ingestion_run_id=get_ingestion_run_id(),
             )
-            return
-
-        raw_snap = cursor_row["cursor_snapshot"]
-        stored = dict(raw_snap) if isinstance(raw_snap, dict) else dict(raw_snap)
-
-    new_battles, found_cursor = collect_new_legends_since_cursor(legend_battles, stored)
+            new_battles = list(reversed(legend_battles))
+            found_cursor = False
+        else:
+            raw_snap = cursor_row["cursor_snapshot"]
+            stored = dict(raw_snap) if isinstance(raw_snap, dict) else dict(raw_snap)
+            new_battles, found_cursor = collect_new_legends_since_cursor(legend_battles, stored)
 
     if not found_cursor:
         log_event(
             logger,
             "ingestion.legends.cursor_miss",
-            f"Legends battle log cursor missing from API window for {player_tag}; resetting without backfill",
+            f"Legends battle log cursor missing from API window for {player_tag}; backfilling visible battles",
             player_tag=player_tag,
             ingestion_run_id=get_ingestion_run_id(),
         )
-        db.upsert_legends_battlelog_cursor(player_tag, canonical_snapshot(newest_legend))
-        return
 
     # new_battles: newest-first (same order as reversed walk before break).
     new_attacks = [b for b in new_battles if is_attack(b)]

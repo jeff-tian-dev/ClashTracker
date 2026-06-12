@@ -1,0 +1,3 @@
+# Exclude from Cursor AI indexing (v1 preserved in repo; not reference for v2).
+legacy-v1/
+

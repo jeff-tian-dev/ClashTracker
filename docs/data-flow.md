@@ -34,7 +34,7 @@ How data moves through the system, step by step.
 
 2. **For each tracked clan:**
    - `coc.get_clan(tag)` → `db.upsert_clan(data)`
-   - For each member: `coc.get_player(member_tag)` → `db.upsert_player(data)`
+   - For each member: `coc.get_player(member_tag)` → `db.upsert_player(data)` (skipped when CoC fields unchanged; writes use `Prefer: return=minimal`)
    - `coc.get_current_war(tag)` → `db.upsert_war()` + `db.upsert_war_attacks()`
    - `db.resolve_stale_wars(tag)` — mark wars stuck in `inWar`/`preparation` past `end_time`
    - `coc.get_capital_raids(tag)` → `db.upsert_capital_raid()` + `db.upsert_raid_members()`
@@ -46,19 +46,20 @@ How data moves through the system, step by step.
    - Clear `left_tracked_roster_at` for active players
    - Stamp departure timestamp for players no longer in any tracked clan/player list
 
-5. **Legends ingestion** (`legends.ingest_legends(client)`):
-   - Process due rows in `legends_confirmation_queue` (second pass ~15 minutes after each primary pass, diffing against a **frozen** pre-run cursor snapshot; see `apps/ingestion/legends.py`)
-   - Get Legends roster tags from `shared/legends_roster.py`
+5. **Legends ingestion** (`legends.ingest_legends(client, active_tags)`):
+   - Process due rows in `legends_confirmation_queue` (second pass ~15 minutes after each primary pass, diffing against a **frozen** pre-run cursor snapshot; see `apps/ingestion/legends.py`). Queue rows for players no longer on the tracked Legends roster are dropped without re-fetching.
+   - Get tracked **Legend League 1** tags from `shared/legends_roster.fetch_legends_roster_tags(db, active_tags=active_tags)` — only clan members / always-tracked pins in tier 1; Legend League 2/3 are excluded
    - Fetch battle logs → compare with cursor → extract new battles
    - Upsert into `legends_battles` table
    - Update `legends_battlelog_cursor`
+   - Upsert `legends_day_snapshots` only when trophy count changed for that day
    - Enqueue a confirmation row (`run_after` ≈ now + 15 minutes) with the cursor snapshot from **before** that player’s primary pass
 
 6. **Player activity** (`player_activity.ingest_player_activity(client, active_tags)`):
    - Fetch battle logs for active players
    - Extract multiplayer attack timestamps
    - Upsert into `player_attack_events`
-   - Prune events older than 14 days
+   - Prune events older than 90 days (heatmap window; hourly chart still shows last 7 local days only)
 
 ### Error Handling
 - **403 (private war log)**: logged, skipped

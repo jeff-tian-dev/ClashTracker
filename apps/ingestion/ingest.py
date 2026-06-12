@@ -62,6 +62,13 @@ def _run_once_inner() -> None:
             ingestion_run_id=get_ingestion_run_id(),
         )
 
+    db.reset_ingestion_caches()
+    seed_tags = set(always_tags)
+    for entry in tracked:
+        seed_tags |= db.get_player_tags_for_clan(entry["clan_tag"])
+    db.warm_player_compare_cache(seed_tags)
+    db.warm_clan_tag_cache()
+
     client = coc.create_client()
     active_tags: set[str] = set(always_tags)
 
@@ -96,7 +103,7 @@ def _run_once_inner() -> None:
 
         db.reconcile_tracked_roster(active_tags)
 
-        legends.ingest_legends(client)
+        legends.ingest_legends(client, active_tags)
         player_activity.ingest_player_activity(client, active_tags)
     finally:
         client.close()

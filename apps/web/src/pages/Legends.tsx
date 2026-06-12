@@ -103,7 +103,6 @@ type LegendsDisplayBlock = {
 function buildLegendsDisplayBlocks(
   entries: LegendsLeaderboardEntry[],
   julyOnly: boolean,
-  aprilPush: boolean,
 ): LegendsDisplayBlock[] {
   if (!julyOnly) {
     const sorted = [...entries].sort(compareLegendsDisplayOrder);
@@ -119,57 +118,16 @@ function buildLegendsDisplayBlocks(
     ];
   }
 
-  if (!aprilPush) {
-    const rows: LegendsDisplayRow[] = [];
-    const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsDisplayOrder);
-    const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsDisplayOrder);
-    clanJuly.forEach((entry, i) => {
-      rows.push({ entry, rankLabel: String(i + 1), julyMuted: false });
-    });
-    other.forEach((entry) => {
-      rows.push({ entry, rankLabel: "—", julyMuted: true });
-    });
-    return [{ heading: null, rows }];
-  }
-
-  const primary = entries.filter(isClanJulyPrimary);
-  const upper = primary
-    .filter((e) => (e.legends_bracket ?? 1) === 1)
-    .sort(compareLegendsDisplayOrder);
-  const lower = primary
-    .filter((e) => (e.legends_bracket ?? 1) === 2)
-    .sort(compareLegendsDisplayOrder);
+  const rows: LegendsDisplayRow[] = [];
+  const clanJuly = entries.filter(isClanJulyPrimary).sort(compareLegendsDisplayOrder);
   const other = entries.filter((e) => !isClanJulyPrimary(e)).sort(compareLegendsDisplayOrder);
-
-  const blocks: LegendsDisplayBlock[] = [
-    {
-      heading: "Upper bracket",
-      rows: upper.map((entry, i) => ({
-        entry,
-        rankLabel: String(i + 1),
-        julyMuted: false,
-      })),
-    },
-    {
-      heading: "Lower bracket",
-      rows: lower.map((entry, i) => ({
-        entry,
-        rankLabel: String(i + 1),
-        julyMuted: false,
-      })),
-    },
-  ];
-  if (other.length > 0) {
-    blocks.push({
-      heading: null,
-      rows: other.map((entry) => ({
-        entry,
-        rankLabel: "—",
-        julyMuted: true,
-      })),
-    });
-  }
-  return blocks;
+  clanJuly.forEach((entry, i) => {
+    rows.push({ entry, rankLabel: String(i + 1), julyMuted: false });
+  });
+  other.forEach((entry) => {
+    rows.push({ entry, rankLabel: "—", julyMuted: true });
+  });
+  return [{ heading: null, rows }];
 }
 
 function tieBreakWinner(a: LegendsLeaderboardEntry, b: LegendsLeaderboardEntry): LegendsLeaderboardEntry {
@@ -322,7 +280,7 @@ function LegendsLeaderboardTable({
                 <Table.Row>
                   <Table.Cell colSpan={colSpan}>
                     <Text size="2" color="gray">
-                      No players in this bracket.
+                      No players in this section.
                     </Text>
                   </Table.Cell>
                 </Table.Row>
@@ -532,13 +490,13 @@ export function Legends() {
   const [availableLegendsDays, setAvailableLegendsDays] = useState<string[]>([]);
   const [modalSelectedDay, setModalSelectedDay] = useState("");
   const [julyOnly, setJulyOnly] = useState(false);
-  const [aprilPush, setAprilPush] = useState(false);
+  const [julyPush, setJulyPush] = useState(false);
 
   const isViewingPastDay = selectedDay !== "" && selectedDay !== currentLegendsDay;
 
   const displayBlocks = useMemo(
-    () => buildLegendsDisplayBlocks(entries, julyOnly, aprilPush),
-    [entries, julyOnly, aprilPush],
+    () => buildLegendsDisplayBlocks(entries, julyOnly),
+    [entries, julyOnly],
   );
 
   const dayLeaders = useMemo(
@@ -703,25 +661,25 @@ export function Legends() {
               size="2"
               checked={julyOnly}
               onCheckedChange={(v) => {
-                if (!v) setAprilPush(false);
+                if (!v) setJulyPush(false);
                 setJulyOnly(v);
               }}
             />
           </label>
           <label
-            htmlFor="legends-april-push"
+            htmlFor="legends-july-push"
             className="inline-flex items-center gap-2 cursor-pointer touch-manipulation py-1"
           >
             <Text size="2" weight="medium">
-              April push
+              July push
             </Text>
             <Switch
-              id="legends-april-push"
+              id="legends-july-push"
               size="2"
-              checked={aprilPush}
+              checked={julyPush}
               onCheckedChange={(v) => {
                 if (v) setJulyOnly(true);
-                setAprilPush(v);
+                setJulyPush(v);
               }}
             />
           </label>

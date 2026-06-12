@@ -115,19 +115,20 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 **Query params** (`/api/legends/{tag}`): `legends_day` (YYYY-MM-DD, defaults to current)
 
 **Roster rule for `/api/legends`**:
-- **Current day**: roster = players whose `league_name` is "Legend League" (live roster), padded with any battle attackers/defenders.
+- **Current day**: roster = **Legend League 1** players on the **tracked** scope (members of tracked clans with `left_tracked_roster_at` null, plus always-tracked pins), padded with any battle attackers/defenders already in `legends_battles` for that day who are also Legend League 1. Legend League 2 and 3 are excluded.
 - **Past day in-season**: roster = (players who have battles that day) UNION (currently tracked players). Always-tracked pins without battles appear as zero-battle rows so the UI can still grey them appropriately.
-- **Stale-leaver filter** (applies to all days): rows for non-pinned players whose `left_tracked_roster_at` is more than **3 days ago** are dropped at the DB layer via `.not_.in_("player_tag", stale_tags)` in `_fetch_legends_battles_for_day`, and also excluded from `roster_tags`. Always-tracked pins (July / external, `is_always_tracked=true`) are exempt. Rationale: most Legend-League tracked accounts stay ingested long after they leave tracked clans (ingestion keys off `players.league_name`), and excluding them upstream cuts the today fetch by ~30%.
+- **Stale-leaver filter** (applies to all days): rows for non-pinned players whose `left_tracked_roster_at` is more than **3 days ago** are dropped at the DB layer via `.not_.in_("player_tag", stale_tags)` in `_fetch_legends_battles_for_day`, and also excluded from `roster_tags`. Always-tracked pins (July / external, `is_always_tracked=true`) are exempt.
+- **Ingestion scope**: legends battle polling uses the same tracked **Legend League 1** scope (`fetch_legends_roster_tags` with `active_tags` from ingestion). Legend League 2/3 and ex-members who are not on `tracked_players` are not ingested.
 
 **Pagination note**: the leaderboard pages `legends_battles` in 1000-row chunks ordered by `id` (see `_fetch_legends_battles_for_day` in `apps/api/routers/legends.py`). A full-roster Legends day can exceed PostgREST's default single-response cap (~82 players × 16 rows ≈ 1,300), so any one-shot `.execute()` would silently undercount late-ingested battles. Pagination remains as defense-in-depth even after the stale-leaver filter brings today's fetch below the cap.
 
 **Trophy source for `/api/legends`** (`final_trophies` / `initial_trophies`):
 - **Current day**: computed from the player's live `players.trophies` (`final = live`, `initial = live − net`). The day isn't over yet so "latest observed" is inherently the final.
-- **Past day with snapshot**: uses `legends_day_snapshots.trophies` as the frozen end-of-day value. Ingestion upserts a snapshot every ~10 min per Legends player; the last write before the 5:00 UTC (1 AM EST) reset becomes the day's final. `initial = final − net`.
+- **Past day with snapshot**: uses `legends_day_snapshots.trophies` as the frozen end-of-day value. Ingestion upserts a snapshot when trophies change during the day; the last write before the 5:00 UTC (1 AM EST) reset becomes the day's final. `initial = final − net`.
 - **Past day without snapshot** (e.g. days predating migration `021`): both `initial_trophies` and `final_trophies` are **`null`**. The UI renders these as "Unknown" — the API intentionally does NOT fall back to live trophies, because that would mis-report the player's current count as their end-of-that-day total.
 - `GET /api/legends/{tag}` returns `current_trophies` = the snapshot for the requested past day, or `null` when no snapshot exists; current-day requests always return live trophies.
 
-**`GET /api/legends` row fields**: Each item includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list). Rows that would be stale under the 3-day filter above never reach the client.
+**`GET /api/legends` row fields**: Each item includes `league_tier_id` and `legend_league_tier` (1 = highest … 3) when the player is in Legend League, derived from CoC `leagueTier.id` (105000036 / 105000035 / 105000034). Supercell uses the same name for all three tiers; IDs are the source of truth. Each item also includes `left_tracked_roster_at` (ISO timestamp or `null`) when the player is no longer on a tracked clan roster; the Legends UI demotes and greys those rows unless `is_always_tracked` is true (July or external tracked list). Rows that would be stale under the 3-day filter above never reach the client.
 
 ---
 
@@ -149,7 +150,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 |--------|------|------|-------------|
 | `GET` | `/api/tracked-players` | No | All tracked players (optionally filtered) |
 | `POST` | `/api/tracked-players` | Admin | Add player to tracking list |
-| `PATCH` | `/api/tracked-players/{tag}` | Admin | Update display_name, tracking_group, or legends_bracket |
+| `PATCH` | `/api/tracked-players/{tag}` | Admin | Update display_name or tracking_group |
 | `DELETE` | `/api/tracked-players/{tag}` | Admin | Remove player from tracking list |
 
 **Query params** (list): `tracking_group` (`clan_july` or `external`)
@@ -160,8 +161,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
   "player_tag": "#TAG",
   "display_name": "optional",
   "note": "optional",
-  "tracking_group": "clan_july",
-  "legends_bracket": 1
+  "tracking_group": "clan_july"
 }
 ```
 
@@ -169,8 +169,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 ```json
 {
   "display_name": "New Name",
-  "tracking_group": "external",
-  "legends_bracket": 2
+  "tracking_group": "external"
 }
 ```
 

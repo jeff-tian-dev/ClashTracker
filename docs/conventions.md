@@ -38,13 +38,15 @@ Strict rules for consistency. AI agents must follow these.
 
 ### Separation of Concerns
 ```
-apps/api/         → HTTP handling only (routers, auth, error mapping)
+apps/api/         → Routers, auth, error mapping (DB-backed by default; see CoC rule below)
 apps/ingestion/   → Data pipeline only (fetch, transform, upsert)
 apps/shared/      → Cross-cutting logic (config, logging, domain helpers)
 apps/web/src/lib/ → API client, contexts, utility functions
 apps/web/src/pages/ → One file per route, collocated data fetching
 apps/web/src/components/ → Reusable UI primitives only
 ```
+
+- **`apps/api/` and Clash of Clans** — Routes are **DB-first**. Calls to the **Clash of Clans API** are allowed only when the feature needs live or not-yet-ingested data, using the shared client pattern in `apps/ingestion/supercell_client.py` (or a module in `apps/shared/` that both API and ingestion import). Reuse `_encode_tag` / `create_client()`; do not add ad-hoc CoC HTTP clients. Never expose `COC_API_TOKEN` to the browser. Full agent rules → `AGENTS.md` (Supercell / API layer section).
 
 ### Rules
 - **No API calls inside UI components** — only pages fetch data via `api.ts` methods in `useEffect`

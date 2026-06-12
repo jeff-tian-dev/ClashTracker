@@ -73,7 +73,8 @@ Player profiles, overwritten on each ingestion run.
 | `role` | TEXT | Display label (Leader/Co-leader/Elder/Member) |
 | `war_preference` | TEXT | |
 | `clan_capital_contributions` | INT | |
-| `league_name` | TEXT | Prefers `leagueTier.name` over `league.name` |
+| `league_name` | TEXT | Prefers enriched Legend League tier label when `league_tier_id` is set |
+| `league_tier_id` | INT | CoC `leagueTier.id` (Legend League 1–3: 105000036–105000034) (migration 022) |
 | `updated_at` | TIMESTAMPTZ | |
 | `left_tracked_roster_at` | TIMESTAMPTZ | Set when player leaves all tracked clans (migration 004) |
 | `roster_sort_bucket` | SMALLINT GENERATED | 0 = active, 1 = left (migration 004) |
@@ -92,7 +93,7 @@ Admin-managed pins for always-tracked players. **No FK to `players`**.
 | `note` | TEXT | Optional admin note |
 | `added_at` | TIMESTAMPTZ | |
 | `tracking_group` | TEXT NOT NULL DEFAULT `'clan_july'` | CHECK: `clan_july` or `external` (migration 010) |
-| `legends_bracket` | INT DEFAULT 1 | 1 = upper, 2 = lower (migration 012) |
+| `legends_bracket` | INT DEFAULT 1 | Legacy column (migration 012); no longer used by API/UI |
 
 ---
 
@@ -253,7 +254,7 @@ Multiplayer attack timestamps for activity heatmaps.
 | `opponent_tag` | TEXT DEFAULT '' | |
 
 **Unique**: `(player_tag, attacked_at, opponent_tag)`
-**Pruned**: events older than 14 days are deleted each ingestion run
+**Pruned**: events older than 90 days are deleted each ingestion run (matches heatmap window; hourly chart uses last 7 days client-side)
 
 ---
 

@@ -16,7 +16,9 @@ from . import db
 
 logger = logging.getLogger(__name__)
 
-_RETENTION_DAYS = 14
+# Keep individual attack rows for the heatmap window (matches API + AttackActivityHeatmap).
+# The hourly chart uses only the last 7 local days client-side; no separate prune for that.
+_RETENTION_DAYS = 90
 
 
 def _ingest_one_player(client, player_tag: str) -> None:

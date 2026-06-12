@@ -11,6 +11,11 @@ from api.routers.legends import (
     _is_stale_left_roster,
 )
 
+_LL1_PLAYER_FIELDS = {
+    "league_tier_id": 105000036,
+    "league_name": "Legend League 1",
+}
+
 
 def test_aggregate_counts_attacks_and_defenses():
     battles = [
@@ -110,7 +115,13 @@ def _make_chain(snapshot_rows: list[dict], *, attack_total: int, defense_total: 
                 ])
             if t == "players":
                 return _Resp([
-                    {"tag": "#P1", "name": "TestPlayer", "trophies": live_trophies, "left_tracked_roster_at": None},
+                    {
+                        "tag": "#P1",
+                        "name": "TestPlayer",
+                        "trophies": live_trophies,
+                        "left_tracked_roster_at": None,
+                        **_LL1_PLAYER_FIELDS,
+                    },
                 ])
             if t == "legends_day_snapshots":
                 return _Resp(list(snapshot_rows))
@@ -357,13 +368,14 @@ def test_leaderboard_hides_players_who_left_roster_over_3_days_ago(client, monke
     long_gone_iso = (now - timedelta(days=10)).isoformat()
 
     players_rows = [
-        {"tag": "#STALE", "name": "Stale", "trophies": 5000, "left_tracked_roster_at": stale_iso},
-        {"tag": "#FRESH", "name": "Fresh", "trophies": 5100, "left_tracked_roster_at": fresh_iso},
+        {"tag": "#STALE", "name": "Stale", "trophies": 5000, "left_tracked_roster_at": stale_iso, **_LL1_PLAYER_FIELDS},
+        {"tag": "#FRESH", "name": "Fresh", "trophies": 5100, "left_tracked_roster_at": fresh_iso, **_LL1_PLAYER_FIELDS},
         {
             "tag": "#PINNED_GONE",
             "name": "PinnedGone",
             "trophies": 5200,
             "left_tracked_roster_at": long_gone_iso,
+            **_LL1_PLAYER_FIELDS,
         },
     ]
     tracked_rows = [

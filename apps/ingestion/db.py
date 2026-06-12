@@ -1,9 +1,16 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
+from postgrest import ReturnMethod
 from supabase import create_client, Client
 from shared.legends_roster import fetch_legends_roster_tags
+from shared.player_ingest import (
+    player_row_from_coc,
+    player_rows_unchanged,
+)
 
+from . import db_cache
+from . import db_writes
 from .config import SUPABASE_KEY, SUPABASE_URL
 
 logger = logging.getLogger(__name__)
@@ -31,20 +38,36 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# CoC API role strings -> dashboard labels (stored in players.role).
-_PLAYER_ROLE_DISPLAY: dict[str, str] = {
-    "member": "Member",
-    "admin": "Elder",
-    "elder": "Elder",
-    "coLeader": "Co-leader",
-    "leader": "Leader",
-}
+def reset_ingestion_caches() -> None:
+    db_cache.reset_ingestion_caches()
 
 
-def normalize_player_role(role: str | None) -> str | None:
-    if not role:
-        return None
-    return _PLAYER_ROLE_DISPLAY.get(role, role)
+def warm_player_compare_cache(tags: set[str]) -> None:
+    db_cache.warm_player_compare_cache(get_db(), tags)
+
+
+def warm_clan_tag_cache() -> None:
+    db_cache.warm_clan_tag_cache(get_db())
+
+
+def warm_legends_snapshot_cache(player_tags: list[str], legends_day: str) -> None:
+    db_cache.warm_legends_snapshot_cache(get_db(), player_tags, legends_day)
+
+
+def _upsert_minimal(table: str, row: dict, *, on_conflict: str) -> None:
+    db_writes.upsert_minimal(get_db(), table, row, on_conflict=on_conflict)
+
+
+def _upsert_minimal_batch(table: str, rows: list[dict], *, on_conflict: str) -> None:
+    db_writes.upsert_minimal_batch(get_db(), table, rows, on_conflict=on_conflict)
+
+
+def _insert_minimal(table: str, row: dict) -> None:
+    db_writes.insert_minimal(get_db(), table, row)
+
+
+def _update_minimal(table: str, values: dict, *, column: str, values_in: list) -> None:
+    db_writes.update_minimal(get_db(), table, values, column=column, values_in=values_in)
 
 
 def get_tracked_clans() -> list[dict]:
@@ -105,9 +128,9 @@ def reconcile_tracked_roster(active_tags: set[str]) -> None:
     if active_list:
         for i in range(0, len(active_list), CHUNK):
             chunk = active_list[i : i + CHUNK]
-            db.table("players").update({"left_tracked_roster_at": None}).in_("tag", chunk).execute()
+            _update_minimal("players", {"left_tracked_roster_at": None}, column="tag", values_in=chunk)
 
-    q = db.table("players").select("tag").is_("left_tracked_roster_at", None)
+    q = get_db().table("players").select("tag").is_("left_tracked_roster_at", None)
     if active_list:
         q = q.not_.in_("tag", active_list)
     resp = q.execute()
@@ -115,7 +138,7 @@ def reconcile_tracked_roster(active_tags: set[str]) -> None:
     now = _now_iso()
     for i in range(0, len(tags_to_mark), CHUNK):
         chunk = tags_to_mark[i : i + CHUNK]
-        db.table("players").update({"left_tracked_roster_at": now}).in_("tag", chunk).execute()
+        _update_minimal("players", {"left_tracked_roster_at": now}, column="tag", values_in=chunk)
 
     if tags_to_mark:
         logger.info(
@@ -127,10 +150,7 @@ def reconcile_tracked_roster(active_tags: set[str]) -> None:
 
 def clan_row_exists(tag: str) -> bool:
     """True if `clans` has a row for this tag (for players.clan_tag FK)."""
-    if not tag:
-        return False
-    resp = get_db().table("clans").select("tag").eq("tag", tag).limit(1).execute()
-    return bool(resp.data)
+    return db_cache.clan_tag_known(get_db(), tag)
 
 
 def upsert_clan(clan_data: dict) -> None:
@@ -154,51 +174,45 @@ def upsert_clan(clan_data: dict) -> None:
         "is_war_log_public": clan_data.get("isWarLogPublic", False),
         "updated_at": _now_iso(),
     }
-    get_db().table("clans").upsert(row, on_conflict="tag").execute()
+    _upsert_minimal("clans", row, on_conflict="tag")
+    db_cache.remember_clan_tag(row["tag"])
     logger.info(
         "Upserted clan",
         extra={"event": "ingestion.db.upsert", "table": "clans", "tag": row["tag"], "clan_name": row["name"]},
     )
 
 
-def upsert_player(player_data: dict) -> None:
+def upsert_player(player_data: dict) -> bool:
+    """Upsert player when CoC fields changed; return True if a write occurred."""
     clan = player_data.get("clan")
     if isinstance(clan, dict):
         ctag = (clan.get("tag") or "").strip()
         if ctag and not clan_row_exists(ctag):
-            # Player payload embeds PlayerClan (tag, name, badgeUrls, clanLevel); enough for upsert_clan defaults.
             upsert_clan(clan)
             logger.info(
                 "Ensured clan row from player.clan (stub; not yet ingested via tracked clans)",
                 extra={"event": "ingestion.db.clan_stub", "clan_tag": ctag, "player_tag": player_data.get("tag")},
             )
 
-    league_tier = player_data.get("leagueTier") or {}
-    league_obj = player_data.get("league") or {}
-    # Prefer leagueTier.name (granular tier); fall back to league.name if tier omitted.
-    league_name = league_tier.get("name") or league_obj.get("name")
-    row = {
-        "tag": player_data["tag"],
-        "name": player_data["name"],
-        "clan_tag": clan["tag"] if clan else None,
-        "town_hall_level": player_data.get("townHallLevel", 1),
-        "exp_level": player_data.get("expLevel", 1),
-        "trophies": player_data.get("trophies", 0),
-        "best_trophies": player_data.get("bestTrophies", 0),
-        "war_stars": player_data.get("warStars", 0),
-        "attack_wins": player_data.get("attackWins", 0),
-        "defense_wins": player_data.get("defenseWins", 0),
-        "role": normalize_player_role(player_data.get("role")),
-        "war_preference": player_data.get("warPreference"),
-        "clan_capital_contributions": player_data.get("clanCapitalContributions", 0),
-        "league_name": league_name,
-        "updated_at": _now_iso(),
-    }
-    get_db().table("players").upsert(row, on_conflict="tag").execute()
+    row = player_row_from_coc(player_data)
+    tag = row["tag"]
+    db = get_db()
+    existing = db_cache.get_player_compare_row(db, tag)
+    if player_rows_unchanged(existing, row):
+        logger.debug(
+            "Skipped unchanged player upsert",
+            extra={"event": "ingestion.db.upsert_skip", "table": "players", "tag": tag},
+        )
+        return False
+
+    row["updated_at"] = _now_iso()
+    _upsert_minimal("players", row, on_conflict="tag")
+    db_cache.remember_player_compare_row(row)
     logger.debug(
         "Upserted player",
-        extra={"event": "ingestion.db.upsert", "table": "players", "tag": row["tag"]},
+        extra={"event": "ingestion.db.upsert", "table": "players", "tag": tag},
     )
+    return True
 
 
 def parse_coc_timestamp(ts: str | None) -> str | None:
@@ -302,11 +316,14 @@ def resolve_stale_wars(clan_tag: str) -> int:
         else:
             result = "tie"
 
-        get_db().table("wars").update({
-            "state": "warEnded",
-            "result": result,
-            "updated_at": _now_iso(),
-        }).eq("id", war["id"]).execute()
+        get_db().table("wars").update(
+            {
+                "state": "warEnded",
+                "result": result,
+                "updated_at": _now_iso(),
+            },
+            returning=ReturnMethod.minimal,
+        ).eq("id", war["id"]).execute()
 
         logger.info(
             "Resolved stale war id=%d for clan %s → %s",
@@ -335,9 +352,7 @@ def upsert_war_attacks(war_id: int, war_data: dict) -> None:
                     "is_home_attacker": is_home_attacker,
                 })
     if attacks:
-        get_db().table("war_attacks").upsert(
-            attacks, on_conflict="war_id,attacker_tag,attack_order"
-        ).execute()
+        _upsert_minimal_batch("war_attacks", attacks, on_conflict="war_id,attacker_tag,attack_order")
         logger.info("Upserted %d attacks for war id=%d", len(attacks), war_id)
 
 
@@ -367,9 +382,9 @@ def upsert_capital_raid(raid_data: dict, clan_tag: str) -> int | None:
     return raid_id
 
 
-def get_legends_player_tags() -> list[str]:
-    """Return tags on the Legends daily roster (see shared.legends_roster)."""
-    return fetch_legends_roster_tags(get_db())
+def get_legends_player_tags(active_tags: set[str] | None = None) -> list[str]:
+    """Return tracked Legend League tags for legends ingestion (see shared.legends_roster)."""
+    return fetch_legends_roster_tags(get_db(), active_tags=active_tags)
 
 
 def get_legends_day_attack_defense_counts(player_tag: str, legends_day: str) -> tuple[int, int]:
@@ -407,41 +422,60 @@ def upsert_legends_battlelog_cursor(player_tag: str, cursor_snapshot: dict) -> N
         "cursor_snapshot": cursor_snapshot,
         "updated_at": _now_iso(),
     }
-    get_db().table("legends_battlelog_cursor").upsert(row, on_conflict="player_tag").execute()
+    get_db().table("legends_battlelog_cursor").upsert(
+        row, on_conflict="player_tag", returning=ReturnMethod.minimal
+    ).execute()
 
 
 def upsert_legends_battle(row: dict) -> None:
-    get_db().table("legends_battles").upsert(
+    _upsert_minimal(
+        "legends_battles",
         row,
         on_conflict="player_tag,opponent_tag,is_attack,stars,destruction_pct,legends_day",
-    ).execute()
+    )
 
 
-def upsert_legends_day_snapshot(player_tag: str, legends_day: str, trophies: int) -> None:
-    """Record the latest observed trophy count for a player on a given legends_day.
+def upsert_legends_day_snapshot(player_tag: str, legends_day: str, trophies: int) -> bool:
+    """Record trophy count for a legends day when it changed; return True if written.
 
-    Called from ingestion on every run. On conflict the row is overwritten, so the
-    LAST snapshot written before the 5:00 UTC daily reset becomes that day's
-    authoritative ``final_trophies`` (see docs/database.md).
+    On conflict the row is overwritten, so the LAST snapshot written before the 5:00 UTC
+    daily reset becomes that day's authoritative ``final_trophies`` (see docs/database.md).
     """
-    get_db().table("legends_day_snapshots").upsert(
+    trophies_int = int(trophies)
+    if db_cache.legends_snapshot_unchanged(player_tag, legends_day, trophies_int):
+        logger.debug(
+            "Skipped unchanged legends day snapshot",
+            extra={
+                "event": "ingestion.db.upsert_skip",
+                "table": "legends_day_snapshots",
+                "player_tag": player_tag,
+                "legends_day": legends_day,
+            },
+        )
+        return False
+
+    _upsert_minimal(
+        "legends_day_snapshots",
         {
             "player_tag": player_tag,
             "legends_day": legends_day,
-            "trophies": int(trophies),
+            "trophies": trophies_int,
             "snapshot_at": _now_iso(),
         },
         on_conflict="player_tag,legends_day",
-    ).execute()
+    )
+    db_cache.remember_legends_snapshot(player_tag, legends_day, trophies_int)
+    return True
 
 
 def upsert_legends_battles_batch(rows: list[dict]) -> None:
     if not rows:
         return
-    get_db().table("legends_battles").upsert(
+    _upsert_minimal_batch(
+        "legends_battles",
         rows,
         on_conflict="player_tag,opponent_tag,is_attack,stars,destruction_pct,legends_day",
-    ).execute()
+    )
     logger.info(
         "Upserted %d legends battle(s)",
         len(rows),
@@ -450,11 +484,14 @@ def upsert_legends_battles_batch(rows: list[dict]) -> None:
 
 
 def insert_legends_confirmation_queue(player_tag: str, cursor_snapshot: dict, run_after_iso: str) -> None:
-    get_db().table("legends_confirmation_queue").insert({
-        "player_tag": player_tag,
-        "cursor_snapshot": cursor_snapshot,
-        "run_after": run_after_iso,
-    }).execute()
+    _insert_minimal(
+        "legends_confirmation_queue",
+        {
+            "player_tag": player_tag,
+            "cursor_snapshot": cursor_snapshot,
+            "run_after": run_after_iso,
+        },
+    )
 
 
 def fetch_due_legends_confirmations(limit: int = 200) -> list[dict]:
@@ -471,7 +508,9 @@ def fetch_due_legends_confirmations(limit: int = 200) -> list[dict]:
 
 
 def delete_legends_confirmation_queue(queue_id: int) -> None:
-    get_db().table("legends_confirmation_queue").delete().eq("id", queue_id).execute()
+    get_db().table("legends_confirmation_queue").delete(returning=ReturnMethod.minimal).eq(
+        "id", queue_id
+    ).execute()
 
 
 def upsert_raid_members(raid_id: int, members: list[dict]) -> None:
@@ -488,7 +527,7 @@ def upsert_raid_members(raid_id: int, members: list[dict]) -> None:
         for m in members
     ]
     if rows:
-        get_db().table("raid_members").upsert(rows, on_conflict="raid_id,player_tag").execute()
+        _upsert_minimal_batch("raid_members", rows, on_conflict="raid_id,player_tag")
         logger.info("Upserted %d raid members for raid id=%d", len(rows), raid_id)
 
 
@@ -511,16 +550,19 @@ def upsert_battlelog_cursor(player_tag: str, cursor_snapshot: dict) -> None:
         "cursor_snapshot": cursor_snapshot,
         "updated_at": _now_iso(),
     }
-    get_db().table("player_battlelog_cursor").upsert(row, on_conflict="player_tag").execute()
+    get_db().table("player_battlelog_cursor").upsert(
+        row, on_conflict="player_tag", returning=ReturnMethod.minimal
+    ).execute()
 
 
 def insert_player_attack_events_batch(rows: list[dict]) -> None:
     if not rows:
         return
-    get_db().table("player_attack_events").upsert(
+    _upsert_minimal_batch(
+        "player_attack_events",
         rows,
         on_conflict="player_tag,attacked_at,opponent_tag",
-    ).execute()
+    )
     logger.info(
         "Upserted %d player attack event(s)",
         len(rows),
@@ -528,6 +570,8 @@ def insert_player_attack_events_batch(rows: list[dict]) -> None:
     )
 
 
-def prune_player_attack_events_older_than_days(days: int = 14) -> None:
+def prune_player_attack_events_older_than_days(days: int = 90) -> None:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-    get_db().table("player_attack_events").delete().lt("attacked_at", cutoff).execute()
+    get_db().table("player_attack_events").delete(returning=ReturnMethod.minimal).lt(
+        "attacked_at", cutoff
+    ).execute()
