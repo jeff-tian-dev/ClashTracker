@@ -12,7 +12,7 @@ function ThemedApp() {
   }, [appearance]);
   return (
     <Theme
-      accentColor="rose"
+      accentColor="pink"
       grayColor="sand"
       radius="medium"
       scaling="100%"
