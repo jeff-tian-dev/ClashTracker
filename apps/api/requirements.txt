@@ -2,3 +2,6 @@ fastapi>=0.115
 uvicorn[standard]>=0.32
 supabase>=2.0
 python-dotenv>=1.0
+numpy>=1.26
+# CPU-only wheel: plain `xgboost` on Linux x86_64 also pulls ~200MB of NVIDIA NCCL. Imports as `xgboost`.
+xgboost-cpu>=3.0,<4

@@ -79,6 +79,7 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 | `GET` | `/api/wars/player-stats` | No | Per-player war leaderboard for one **tracked** `clan_tag` (ended wars; RPC `war_player_leaderboard_stats`). **Farming hits omitted** from averages and the Attacks column (1 star and destruction &lt; 40%). **Missed** = unused slots vs `attacks_per_member` using every home offensive row (farming still counts as a used swing). |
 | `GET` | `/api/wars/players/{tag}/history` | No | That player’s offensive/defensive war rows for one **tracked** `clan_tag` (ended wars); offense list includes synthetic missed slots (`missed_attack: true`) when slots were unused; farming dips count as used so they do not duplicate as missed. |
 | `GET` | `/api/wars/{id}` | No | War detail with nested `attacks[]` |
+| `GET` | `/api/wars/{id}/prediction` | No | XGBoost win probability for the clan, from the war's current attacks + the clan's last 20 ended wars (features: `apps/shared/war_outcome.py`). **503** `model_unavailable` until a trained model file is deployed. |
 | `DELETE` | `/api/wars/{id}` | Admin | Delete war record |
 
 **Query params** (list): `page`, `page_size`, `clan_tag`, `state`
@@ -86,6 +87,8 @@ FastAPI backend at `apps/api/`. Base path: `/api`.
 **Query params** (`player-stats`): `clan_tag` (required), `sort` (allowlisted field name, default `avg_offense_stars`), `order` (`asc` \| `desc`, default `desc`), `last_attacks` (optional: `5`, `10`, or `15` — per player, last N home offensive swings and last N defensive rows by recency; omit for all ended wars)
 
 **Query params** (`players/{tag}/history`): `clan_tag` (required), `last_attacks` (optional, same as `player-stats`). `{tag}` is URL-encoded player tag (e.g. `%23...`).
+
+**Response** (`{id}/prediction`): `war_id`, `clan_tag`, `state`, `win_probability` (0..1; ties count as not-win), `predicted_result` (`win` \| `lose`, threshold 0.5), `actual_result`, `model_version`, `trained_at`, `features` (the exact model inputs). Model file: `WAR_OUTCOME_MODEL_PATH` (default `apps/shared/models/war_outcome_xgb.json`), produced by `scripts/train_war_outcome.py`.
 
 ---
 

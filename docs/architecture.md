@@ -73,6 +73,7 @@ apps/
 | Config | `api/config.py`, `ingestion/config.py` | Thin re-exports of shared config |
 | Logging | `shared/logutil.py` | JSON-line formatter, correlation IDs |
 | Domain | `shared/legends_roster.py` | Legends League roster queries + `current_legends_day()` |
+| ML | `shared/war_outcome.py` | War outcome features + lazy XGBoost model loading (trained by `scripts/train_war_outcome.py`) |
 | Domain | `shared/battlelog.py` | Battle-log cursor, snapshot comparison, attack detection |
 | API Auth | `api/auth.py` | Bearer admin key dependency |
 | API DB | `api/database.py` | Per-request Supabase client factory |

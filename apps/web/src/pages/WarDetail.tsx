@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Box, Card, Flex, Heading, Text, Badge, Table } from "@radix-ui/themes";
 import { ArrowLeftIcon, StarFilledIcon } from "@radix-ui/react-icons";
-import { api, WarDetail as WarDetailType } from "../lib/api";
+import { api, WarDetail as WarDetailType, WarPrediction } from "../lib/api";
 import { LoadingSpinner } from "../components/LoadingSpinner";
 import { EmptyState } from "../components/EmptyState";
 import { TableScrollArea } from "../components/TableScrollArea";
@@ -25,6 +25,7 @@ export function WarDetail() {
   const [war, setWar] = useState<WarDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState<WarPrediction | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -33,6 +34,12 @@ export function WarDetail() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Only live wars get a prediction; a missing model (503) just hides the stat.
+  useEffect(() => {
+    if (!war || war.state === "warEnded") return;
+    api.warPrediction(war.id).then(setPrediction).catch(() => setPrediction(null));
+  }, [war]);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <EmptyState message={error} />;
@@ -76,6 +83,14 @@ export function WarDetail() {
             <Text size="1" color="gray">War Date</Text>
             <Text weight="bold">{new Date(war.start_time).toLocaleDateString()}</Text>
           </Flex>
+          {prediction && (
+            <Flex direction="column" gap="1">
+              <Text size="1" color="gray">Win Chance</Text>
+              <Text weight="bold" color={prediction.win_probability >= 0.5 ? "green" : "red"}>
+                {(prediction.win_probability * 100).toFixed(0)}%
+              </Text>
+            </Flex>
+          )}
         </Flex>
       </Card>
 

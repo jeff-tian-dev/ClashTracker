@@ -66,6 +66,8 @@ export const api = {
     return request<PaginatedResponse<War>>(`/api/wars${qs}`);
   },
   war: (id: number) => request<WarDetail>(`/api/wars/${id}`),
+  /** XGBoost win probability; rejects with `API 503` until a model is deployed. */
+  warPrediction: (id: number) => request<WarPrediction>(`/api/wars/${id}/prediction`),
   warPlayerStats: (params: {
     clan_tag: string;
     sort?: string;
@@ -283,6 +285,20 @@ export interface WarPlayerHistoryResponse {
 
 export interface WarDetail extends War {
   attacks: WarAttack[];
+}
+
+/** `GET /api/wars/{id}/prediction` — model inputs live in `apps/shared/war_outcome.py`. */
+export interface WarPrediction {
+  war_id: number;
+  clan_tag: string;
+  state: string;
+  /** P(clan wins), 0..1. Ties count as not-win. */
+  win_probability: number;
+  predicted_result: "win" | "lose";
+  actual_result: string | null;
+  model_version: string | null;
+  trained_at: string | null;
+  features: Record<string, number>;
 }
 
 export interface Raid {

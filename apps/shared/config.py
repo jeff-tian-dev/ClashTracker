@@ -21,6 +21,15 @@ ADMIN_API_KEY: str = os.environ.get("ADMIN_API_KEY", "")
 COC_API_TOKEN: str = os.environ.get("COC_API_TOKEN", "")
 COC_BASE_URL: str = "https://api.clashofclans.com/v1"
 
+# ── ML models ─────────────────────────────────────────────────────────
+# XGBoost war-outcome booster. Lives under apps/shared/ so deploy.ps1 ships it to the VM.
+WAR_OUTCOME_MODEL_PATH: Path = Path(
+    os.environ.get(
+        "WAR_OUTCOME_MODEL_PATH",
+        str(_root / "apps" / "shared" / "models" / "war_outcome_xgb.json"),
+    )
+)
+
 # ── Strict mode (CI / production) ────────────────────────────────────
 if not SUPABASE_URL and os.environ.get("STRICT_CONFIG", "").lower() in ("1", "true", "yes"):
     raise RuntimeError("SUPABASE_URL / NEXT_PUBLIC_SUPABASE_URL is not set (STRICT_CONFIG=1)")

@@ -5,6 +5,13 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from postgrest.exceptions import APIError
 
+from shared.war_outcome import (
+    HISTORY_WINDOW,
+    WarOutcomeModelUnavailable,
+    build_war_features,
+    get_war_outcome_model,
+)
+
 from ..auth import require_admin
 from ..database import get_db
 from ..supabase_errors import http_exception_for_single_lookup
@@ -329,6 +336,73 @@ def get_war(war_id: int):
         raise RuntimeError("war_attacks query returned non-list data")
     result["attacks"] = attacks.data
     return result
+
+
+@router.get("/wars/{war_id}/prediction")
+def get_war_prediction(war_id: int):
+    """XGBoost P(clan wins) for one war, from its current attacks + the clan's recent wars."""
+    db = get_db()
+    try:
+        war = db.table("wars").select("*").eq("id", war_id).single().execute().data
+    except APIError as exc:
+        raise http_exception_for_single_lookup(exc, resource="war", identifier=str(war_id)) from exc
+    attacks = (
+        db.table("war_attacks")
+        .select("attacker_tag,defender_tag,stars,destruction_percentage,attack_order,is_home_attacker")
+        .eq("war_id", war_id)
+        .execute()
+        .data
+        or []
+    )
+    history_q = (
+        db.table("wars")
+        .select("result,clan_stars,team_size,start_time")
+        .eq("clan_tag", war["clan_tag"])
+        .eq("state", "warEnded")
+        .neq("id", war_id)
+    )
+    if war.get("start_time"):
+        history_q = history_q.lt("start_time", war["start_time"])
+    history = history_q.order("start_time", desc=True).limit(HISTORY_WINDOW).execute().data or []
+
+    try:
+        model = get_war_outcome_model()
+    except WarOutcomeModelUnavailable as exc:
+        logger.warning(
+            "war outcome model unavailable",
+            extra={"event": "api.wars.prediction.model_unavailable", "war_id": war_id, "reason": str(exc)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "model_unavailable",
+                "hint": "War outcome model is not deployed yet; run scripts/train_war_outcome.py.",
+            },
+        ) from exc
+
+    features = build_war_features(war, attacks, history)
+    prediction = model.predict(features)
+    logger.info(
+        "war outcome predicted",
+        extra={
+            "event": "api.wars.prediction",
+            "war_id": war_id,
+            "state": war.get("state"),
+            "win_probability": round(prediction.win_probability, 4),
+            "model_version": prediction.model_version,
+        },
+    )
+    return {
+        "war_id": war_id,
+        "clan_tag": war["clan_tag"],
+        "state": war.get("state"),
+        "win_probability": prediction.win_probability,
+        "predicted_result": "win" if prediction.win_probability >= 0.5 else "lose",
+        "actual_result": war.get("result"),
+        "model_version": prediction.model_version,
+        "trained_at": prediction.trained_at,
+        "features": features,
+    }
 
 
 @router.delete("/wars/{war_id}", status_code=204)

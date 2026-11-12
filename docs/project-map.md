@@ -34,8 +34,15 @@ Use this with the **trivial change shortcut** in `AGENTS.md`: if the task matche
 ### Wars (list + detail)
 - **UI list**: `apps/web/src/pages/Wars.tsx` (Logs / Players subtabs; player leaderboard `apps/web/src/components/WarPlayersLeaderboard.tsx`)
 - **UI detail**: `apps/web/src/pages/WarDetail.tsx`
-- **API**: `apps/api/routers/wars.py` → `GET /api/wars`, `GET /api/wars/player-stats`, `GET /api/wars/players/{tag}/history`, `GET /api/wars/{id}`, `DELETE /api/wars/{id}`
+- **API**: `apps/api/routers/wars.py` → `GET /api/wars`, `GET /api/wars/player-stats`, `GET /api/wars/players/{tag}/history`, `GET /api/wars/{id}`, `GET /api/wars/{id}/prediction`, `DELETE /api/wars/{id}`
 - **Ingestion**: `apps/ingestion/db.py` → `upsert_war()`, `upsert_war_attacks()`, `resolve_stale_wars()`
+
+### War Outcome Prediction (XGBoost)
+- **Features + model loader**: `apps/shared/war_outcome.py` (`FEATURE_NAMES`, `build_war_features()`, `get_war_outcome_model()`); used by both training and the API — bump `FEATURE_SCHEMA_VERSION` when features change
+- **Training (offline)**: `scripts/train_war_outcome.py` → writes `apps/shared/models/war_outcome_xgb.json` (path override: `WAR_OUTCOME_MODEL_PATH`); `deploy.ps1` ships it with `apps/shared`
+- **API**: `GET /api/wars/{id}/prediction` in `apps/api/routers/wars.py` (503 `model_unavailable` when no model file)
+- **UI**: "Win Chance" stat on `apps/web/src/pages/WarDetail.tsx` (live wars only; hidden when 503)
+- **Tests**: `tests/test_war_outcome.py` (xgboost round-trip tests skip if xgboost is not installed)
 
 ### Capital Raids (list + detail)
 - **UI list**: `apps/web/src/pages/Raids.tsx`
